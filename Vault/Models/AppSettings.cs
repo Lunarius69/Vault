@@ -17,6 +17,8 @@ namespace Vault.Models
         public string SteamUserId { get; set; } = "";
         public string RetroAchievementsUser { get; set; } = "";
         public string RetroAchievementsApiKey { get; set; } = "";
+        public string GamesExcelPath { get; set; } = "";
+        public string MediaExcelPath { get; set; } = "";
 
         private static string SettingsPath => Path.Combine(
             System.Environment.GetFolderPath(
