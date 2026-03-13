@@ -119,7 +119,7 @@ namespace Vault.Views
             if (!string.IsNullOrEmpty(path)) TxtMediaExcel.Text = path;
         }
 
-        private void ImportGames_Click(object sender, RoutedEventArgs e)
+        private async void ImportGames_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(TxtGamesExcel.Text))
             {
@@ -129,11 +129,18 @@ namespace Vault.Views
                 return;
             }
             TxtImportStatus.Foreground = System.Windows.Media.Brushes.Gray;
-            TxtImportStatus.Text = "Games import coming soon...";
+            TxtImportStatus.Text = "Importing games...";
             TxtImportStatus.Visibility = Visibility.Visible;
+
+            using var db = new Vault.Database.VaultContext();
+            var importer = new Vault.Services.ExcelImporter(db);
+            var result = await importer.ImportGamesAsync(TxtGamesExcel.Text.Trim());
+
+            TxtImportStatus.Foreground = System.Windows.Media.Brushes.LightGreen;
+            TxtImportStatus.Text = $"Done! {result.GamesImported} games imported.";
         }
 
-        private void ImportMedia_Click(object sender, RoutedEventArgs e)
+        private async void ImportMedia_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(TxtMediaExcel.Text))
             {
@@ -143,8 +150,15 @@ namespace Vault.Views
                 return;
             }
             TxtImportStatus.Foreground = System.Windows.Media.Brushes.Gray;
-            TxtImportStatus.Text = "Media import coming soon...";
+            TxtImportStatus.Text = "Importing media...";
             TxtImportStatus.Visibility = Visibility.Visible;
+
+            using var db = new Vault.Database.VaultContext();
+            var importer = new Vault.Services.ExcelImporter(db);
+            var result = await importer.ImportMediaAsync(TxtMediaExcel.Text.Trim());
+
+            TxtImportStatus.Foreground = System.Windows.Media.Brushes.LightGreen;
+            TxtImportStatus.Text = $"Done! {result.MediaImported} media items imported.";
         }
     }
 }
