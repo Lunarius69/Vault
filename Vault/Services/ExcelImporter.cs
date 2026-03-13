@@ -20,13 +20,26 @@ namespace Vault.Services
     {
         private readonly VaultContext _db;
 
+        // Complete library sheets — treated as a single collection entry
+        private static readonly HashSet<string> CompleteLibrarySheets = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Atari 2600", "NES", "SNES", "Nintendo 64",
+            "Sega Master System", "Sega Genesis", "Sega Saturn", "Sega Dreamcast",
+            "PlayStation 1", "Game Boy & GBC", "Game Boy Advance"
+        };
+
+        // Sheets to skip entirely
+        private static readonly HashSet<string> SkipSheets = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Summary", "SSD Games", "Storage Forecast", "Year-by-Year Timeline",
+            "Assumptions", "Wishlist"
+        };
+
         public ExcelImporter(VaultContext db)
         {
             _db = db;
             ExcelPackage.License.SetNonCommercialPersonal("Vault");
         }
-
-        // ─── GAMES ───────────────────────────────────────────────────────────
 
         public async Task<ImportResult> ImportGamesAsync(string filePath)
         {
@@ -41,48 +54,87 @@ namespace Vault.Services
 
             foreach (var sheet in package.Workbook.Worksheets)
             {
-                // Skip non-game sheets
-                if (sheet.Name == "Summary" || sheet.Name == "Storage Forecast" ||
-                    sheet.Name == "Year-by-Year Timeline" || sheet.Name == "Assumptions" ||
-                    sheet.Name == "Wishlist")
-                    continue;
+                if (SkipSheets.Contains(sheet.Name)) continue;
+                if (sheet.Dimension == null) continue;
 
                 string platform = sheet.Name;
-                int rows = sheet.Dimension?.Rows ?? 0;
-                if (rows < 2) continue;
 
-                // Detect columns by header
-                int titleCol = -1, yearCol = -1, sizeCol = -1, statusCol = -1, genreCol = -1;
+                // Complete library sheets — one collection entry per platform
+                if (CompleteLibrarySheets.Contains(platform))
+                {
+                    if (_db.Games.Any(g => g.Platform == platform && g.LibraryType == "Complete Library"))
+                        continue;
+
+                    // Get size from first data row
+                    string sizeText = sheet.Cells[2, 4].Text.Trim(); // ROM Size column
+
+                    var collectionGame = new Game
+                    {
+                        Title = $"{platform} — Complete Library",
+                        Platform = platform,
+                        LibraryType = "Complete Library",
+                        FileSizeGB = ParseSize(sizeText),
+                        Status = "Not Started",
+                        IsWishlist = false,
+                        IsDownloaded = false
+                    };
+                    _db.Games.Add(collectionGame);
+                    result.GamesImported++;
+                    continue;
+                }
+
+                // Normal sheets — find columns by header
+                int titleCol = -1, yearCol = -1, sizeCol = -1, statusCol = -1,
+                    genreCol = -1, platformCol = -1, noteCol = -1;
+
+                int headerRow = 1;
                 for (int c = 1; c <= sheet.Dimension.Columns; c++)
                 {
-                    string header = sheet.Cells[1, c].Text.Trim().ToLower();
-                    if (header.Contains("title") || header.Contains("game")) titleCol = c;
-                    else if (header.Contains("year")) yearCol = c;
-                    else if (header.Contains("size")) sizeCol = c;
-                    else if (header.Contains("status")) statusCol = c;
-                    else if (header.Contains("genre")) genreCol = c;
+                    string h = sheet.Cells[headerRow, c].Text.Trim().ToLower();
+                    if (h == "title" || h == "game") titleCol = c;
+                    else if (h == "year") yearCol = c;
+                    else if (h == "size" || h == "rom size" || h == "avg size (gb)") sizeCol = c;
+                    else if (h == "status") statusCol = c;
+                    else if (h == "genre") genreCol = c;
+                    else if (h == "platform") platformCol = c;
+                    else if (h == "note" || h == "notes") noteCol = c;
                 }
 
                 if (titleCol == -1) continue;
 
-                for (int row = 2; row <= rows; row++)
+                for (int row = 2; row <= sheet.Dimension.Rows; row++)
                 {
                     string title = sheet.Cells[row, titleCol].Text.Trim();
                     if (string.IsNullOrWhiteSpace(title)) continue;
 
-                    // Skip if already imported
-                    if (_db.Games.Any(g => g.Title == title && g.Platform == platform))
+                    // Skip junk rows
+                    if (title.StartsWith("✅") || title.StartsWith("📥") ||
+                        title.StartsWith("Complete Library") || title.StartsWith("Download from"))
                         continue;
+
+                    // For Live Service sheet, platform comes from its own column
+                    string gamePlatform = platformCol > 0
+                        ? sheet.Cells[row, platformCol].Text.Trim()
+                        : platform;
+                    if (string.IsNullOrWhiteSpace(gamePlatform)) gamePlatform = platform;
+
+                    if (_db.Games.Any(g => g.Title == title && g.Platform == gamePlatform))
+                        continue;
+
+                    string rawStatus = statusCol > 0 ? sheet.Cells[row, statusCol].Text.Trim() : "";
+                    string status = NormalizeStatus(rawStatus);
 
                     var game = new Game
                     {
                         Title = title,
-                        Platform = platform,
+                        Platform = gamePlatform,
                         Year = yearCol > 0 ? ParseYear(sheet.Cells[row, yearCol].Text) : null,
+                        FileSizeGB = sizeCol > 0 ? ParseSize(sheet.Cells[row, sizeCol].Text) : null,
                         Genre = genreCol > 0 ? sheet.Cells[row, genreCol].Text.Trim() : null,
-                        Status = statusCol > 0 ? sheet.Cells[row, statusCol].Text.Trim() : "Not Started",
+                        Status = status,
+                        LibraryType = "Owned",
                         IsWishlist = false,
-                        IsDownloaded = false,
+                        IsDownloaded = false
                     };
 
                     _db.Games.Add(game);
@@ -90,43 +142,44 @@ namespace Vault.Services
                 }
             }
 
-            // Import Wishlist sheet if present
+            // Import Wishlist sheet
             var wishlistSheet = package.Workbook.Worksheets
-                .FirstOrDefault(s => s.Name.ToLower().Contains("wishlist"));
-            if (wishlistSheet != null)
+                .FirstOrDefault(s => s.Name.ToLower() == "wishlist");
+            if (wishlistSheet?.Dimension != null)
             {
-                int rows = wishlistSheet.Dimension?.Rows ?? 0;
                 int titleCol = -1, platformCol = -1, sizeCol = -1, yearCol = -1;
                 for (int c = 1; c <= wishlistSheet.Dimension.Columns; c++)
                 {
-                    string header = wishlistSheet.Cells[1, c].Text.Trim().ToLower();
-                    if (header.Contains("title") || header.Contains("game")) titleCol = c;
-                    else if (header.Contains("platform") || header.Contains("console")) platformCol = c;
-                    else if (header.Contains("size")) sizeCol = c;
-                    else if (header.Contains("year")) yearCol = c;
+                    string h = wishlistSheet.Cells[1, c].Text.Trim().ToLower();
+                    if (h == "title" || h == "game") titleCol = c;
+                    else if (h == "platform" || h == "console") platformCol = c;
+                    else if (h == "size") sizeCol = c;
+                    else if (h == "year") yearCol = c;
                 }
 
                 if (titleCol > 0)
                 {
-                    for (int row = 2; row <= rows; row++)
+                    for (int row = 2; row <= wishlistSheet.Dimension.Rows; row++)
                     {
                         string title = wishlistSheet.Cells[row, titleCol].Text.Trim();
                         if (string.IsNullOrWhiteSpace(title)) continue;
+                        if (title.StartsWith("✅") || title.StartsWith("📥")) continue;
 
-                        string platform = platformCol > 0 ? wishlistSheet.Cells[row, platformCol].Text.Trim() : "Unknown";
+                        string plt = platformCol > 0 ? wishlistSheet.Cells[row, platformCol].Text.Trim() : "Unknown";
 
                         if (_db.Games.Any(g => g.Title == title && g.IsWishlist)) continue;
 
-                        var game = new Game
+                        _db.Games.Add(new Game
                         {
                             Title = title,
-                            Platform = platform,
+                            Platform = plt,
                             Year = yearCol > 0 ? ParseYear(wishlistSheet.Cells[row, yearCol].Text) : null,
+                            FileSizeGB = sizeCol > 0 ? ParseSize(wishlistSheet.Cells[row, sizeCol].Text) : null,
                             Status = "Wishlist",
+                            LibraryType = "Wishlist",
                             IsWishlist = true,
-                        };
-
-                        _db.Games.Add(game);
+                            IsDownloaded = false
+                        });
                         result.GamesImported++;
                     }
                 }
@@ -135,8 +188,6 @@ namespace Vault.Services
             await _db.SaveChangesAsync();
             return result;
         }
-
-        // ─── MEDIA ───────────────────────────────────────────────────────────
 
         public async Task<ImportResult> ImportMediaAsync(string filePath)
         {
@@ -160,38 +211,35 @@ namespace Vault.Services
                 int titleCol = -1, yearCol = -1, sizeCol = -1, episodesCol = -1, seasonsCol = -1;
                 for (int c = 1; c <= sheet.Dimension.Columns; c++)
                 {
-                    string header = sheet.Cells[1, c].Text.Trim().ToLower();
-                    if (header.Contains("title")) titleCol = c;
-                    else if (header.Contains("year") || header.Contains("release")) yearCol = c;
-                    else if (header.Contains("size")) sizeCol = c;
-                    else if (header.Contains("episode")) episodesCol = c;
-                    else if (header.Contains("season")) seasonsCol = c;
+                    string h = sheet.Cells[1, c].Text.Trim().ToLower();
+                    if (h == "title") titleCol = c;
+                    else if (h.Contains("year") || h.Contains("release")) yearCol = c;
+                    else if (h.Contains("size")) sizeCol = c;
+                    else if (h.Contains("episode")) episodesCol = c;
+                    else if (h.Contains("season")) seasonsCol = c;
                 }
 
                 if (titleCol == -1) continue;
 
-                int rows = sheet.Dimension.Rows;
-                for (int row = 2; row <= rows; row++)
+                for (int row = 2; row <= sheet.Dimension.Rows; row++)
                 {
                     string rawTitle = sheet.Cells[row, titleCol].Text.Trim();
                     if (string.IsNullOrWhiteSpace(rawTitle)) continue;
 
-                    // Clean title and extract note
-                    var (cleanTitle, note) = CleanTitle(rawTitle);
+                    var (cleanTitle, note) = CleanMediaTitle(rawTitle);
 
                     if (_db.MediaItems.Any(m => m.Title == cleanTitle && m.MediaType == mediaType))
                         continue;
 
-                    var item = new MediaItem
+                    _db.MediaItems.Add(new MediaItem
                     {
                         Title = cleanTitle,
                         MediaType = mediaType,
                         Year = yearCol > 0 ? ParseYear(sheet.Cells[row, yearCol].Text) : null,
                         TotalEpisodes = episodesCol > 0 ? (ParseInt(sheet.Cells[row, episodesCol].Text) ?? 0) : 0,
                         WatchStatus = "Not Started",
-                    };
-
-                    _db.MediaItems.Add(item);
+                        TmdbId = 0
+                    });
                     result.MediaImported++;
                 }
             }
@@ -200,7 +248,21 @@ namespace Vault.Services
             return result;
         }
 
-        // ─── HELPERS ─────────────────────────────────────────────────────────
+        // ── Helpers ──────────────────────────────────────────────────────────
+
+        private static string NormalizeStatus(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "Not Started";
+            return raw.ToLower() switch
+            {
+                "playing" or "in progress" => "Playing",
+                "completed" or "complete" or "finished" => "Completed",
+                "on hold" or "paused" => "On Hold",
+                "dropped" => "Dropped",
+                "released" => "Not Started",
+                _ => "Not Started"
+            };
+        }
 
         private static string DetectMediaType(string sheetName)
         {
@@ -210,16 +272,14 @@ namespace Vault.Services
             if (s.Contains("animated") && s.Contains("movie")) return "AnimatedMovie";
             if (s.Contains("animated") || s.Contains("western")) return "AnimatedSeries";
             if (s.Contains("movie")) return "Movie";
-            if (s.Contains("show") || s.Contains("tv")) return "Show";
-            return "Movie";
+            return "Show";
         }
 
-        private static (string cleanTitle, string? note) CleanTitle(string raw)
+        private static (string title, string? note) CleanMediaTitle(string raw)
         {
             string note = null;
             string title = raw;
 
-            // Extract dash notes: "Doctor Who – David Tennant Era (Series 2–4)"
             int dashIdx = title.IndexOf(" \u2013 ");
             if (dashIdx == -1) dashIdx = title.IndexOf(" - ");
             if (dashIdx > 0)
@@ -228,15 +288,13 @@ namespace Vault.Services
                 title = title.Substring(0, dashIdx).Trim();
             }
 
-            // Extract parenthetical notes but keep country hints like (US)
             int parenIdx = title.IndexOf(" (");
             if (parenIdx > 0)
             {
-                string paren = title.Substring(parenIdx + 2).TrimEnd(')');
-                // Keep short country/year codes attached, move longer phrases to note
-                if (paren.Length > 5 && !paren.All(char.IsDigit))
+                string inner = title.Substring(parenIdx + 2).TrimEnd(')');
+                if (inner.Length > 4 && !inner.All(char.IsDigit))
                 {
-                    note = (note != null ? note + " " : "") + paren.Trim();
+                    note = string.IsNullOrEmpty(note) ? inner : note + " " + inner;
                     title = title.Substring(0, parenIdx).Trim();
                 }
             }
@@ -253,15 +311,12 @@ namespace Vault.Services
         private static double? ParseSize(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return null;
-            text = text.Replace(",", ".").ToUpper();
-            double multiplier = 1;
-            if (text.Contains("TB")) multiplier = 1024;
-            else if (text.Contains("GB")) multiplier = 1;
-            else if (text.Contains("MB")) multiplier = 1.0 / 1024;
+            text = text.Replace(",", ".").Replace("~", "").Trim().ToUpper();
+            double mult = text.Contains("TB") ? 1024 : text.Contains("MB") ? 1.0 / 1024 : 1;
             string num = System.Text.RegularExpressions.Regex.Match(text, @"[\d.]+").Value;
             if (double.TryParse(num, System.Globalization.NumberStyles.Any,
                 System.Globalization.CultureInfo.InvariantCulture, out double val))
-                return Math.Round(val * multiplier, 2);
+                return Math.Round(val * mult, 2);
             return null;
         }
 
