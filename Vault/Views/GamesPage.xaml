@@ -102,8 +102,11 @@
                               FontFamily="Segoe UI" FontSize="12"
                               SelectionChanged="SortCombo_SelectionChanged">
                         <ComboBox.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#16213e"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#b2bec3"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#16213e"/>
                             <Style TargetType="ComboBoxItem">
-                                <Setter Property="Background" Value="#16213e"/>
+                                <Setter Property="Background" Value="#0d1117"/>
                                 <Setter Property="Foreground" Value="#b2bec3"/>
                                 <Setter Property="FontFamily" Value="Segoe UI"/>
                                 <Setter Property="FontSize" Value="12"/>
@@ -111,8 +114,7 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ComboBoxItem">
-                                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                                    Padding="{TemplateBinding Padding}">
+                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
                                                 <ContentPresenter/>
                                             </Border>
                                             <ControlTemplate.Triggers>
@@ -134,8 +136,7 @@
                             <ControlTemplate TargetType="ComboBox">
                                 <Grid>
                                     <Border x:Name="MainBorder" Background="#16213e"
-                                            BorderBrush="#2d3561" BorderThickness="1"
-                                            CornerRadius="6">
+                                            BorderBrush="#2d3561" BorderThickness="1" CornerRadius="6">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -144,24 +145,26 @@
                                             <ContentPresenter Grid.Column="0"
                                                               Content="{TemplateBinding SelectionBoxItem}"
                                                               ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                              VerticalAlignment="Center"
-                                                              Margin="10,0,0,0"
-                                                              IsHitTestVisible="False"/>
-                                            <TextBlock Grid.Column="1" Text="▾"
-                                                       Foreground="#b2bec3"
-                                                       VerticalAlignment="Center"
-                                                       HorizontalAlignment="Center"
-                                                       FontSize="10"/>
+                                                              VerticalAlignment="Center" Margin="10,0,0,0"
+                                                              IsHitTestVisible="False"
+                                                              TextBlock.Foreground="#b2bec3"/>
+                                            <TextBlock Grid.Column="1" Text="&#x25BE;"
+                                                       Foreground="#b2bec3" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center" FontSize="10"/>
                                             <ToggleButton Grid.ColumnSpan="2"
                                                           IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                                                          Background="Transparent" BorderThickness="0"
-                                                          Focusable="False"/>
+                                                          Focusable="False" Opacity="0">
+                                                <ToggleButton.Template>
+                                                    <ControlTemplate TargetType="ToggleButton">
+                                                        <Border Background="Transparent"/>
+                                                    </ControlTemplate>
+                                                </ToggleButton.Template>
+                                            </ToggleButton>
                                         </Grid>
                                     </Border>
                                     <Popup IsOpen="{TemplateBinding IsDropDownOpen}"
-                                           Placement="Bottom" AllowsTransparency="True">
-                                        <Border Background="#16213e" BorderBrush="#2d3561"
-                                                BorderThickness="1" CornerRadius="6"
+                                           Placement="Bottom" AllowsTransparency="False">
+                                        <Border Background="#0d1117" BorderBrush="#2d3561" BorderThickness="1"
                                                 MinWidth="{TemplateBinding ActualWidth}">
                                             <ScrollViewer MaxHeight="200">
                                                 <ItemsPresenter/>
@@ -169,6 +172,16 @@
                                         </Border>
                                     </Popup>
                                 </Grid>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="MainBorder" Property="Background" Value="#e94560"/>
+                                        <Setter TargetName="MainBorder" Property="BorderBrush" Value="#e94560"/>
+                                    </Trigger>
+                                    <Trigger Property="IsDropDownOpen" Value="True">
+                                        <Setter TargetName="MainBorder" Property="Background" Value="#e94560"/>
+                                        <Setter TargetName="MainBorder" Property="BorderBrush" Value="#e94560"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
                             </ControlTemplate>
                         </ComboBox.Template>
                         <ComboBoxItem Content="Title A-Z" IsSelected="True"/>
