@@ -1,14 +1,16 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using Vault.Database;
 using Vault.Models;
+using Vault.ViewModels;
 
 namespace Vault.Views
 {
@@ -16,15 +18,19 @@ namespace Vault.Views
     {
         private AppSettings _settings;
         private List<Game> _allGames = new();
-        private List<Game> _filteredGames = new();
+        private ObservableCollection<GameTileViewModel> _tiles = new();
         private string _currentPlatform = "All";
         private string _currentStatus = "All";
         private bool _isGridView = true;
+
+        public ICommand GameClickCommand { get; }
 
         public GamesPage(AppSettings settings)
         {
             InitializeComponent();
             _settings = settings;
+            GameClickCommand = new RelayCommand<GameTileViewModel>(OnGameClicked);
+            DataContext = this;
             Loaded += GamesPage_Loaded;
         }
 
@@ -41,40 +47,28 @@ namespace Vault.Views
             ApplyFilters();
         }
 
-        private async Task FetchMissingBoxArtAsync(List<Game> games)
+        private async Task FetchMissingBoxArtAsync(List<GameTileViewModel> tiles)
         {
             if (string.IsNullOrEmpty(_settings.SteamGridDbApiKey)) return;
 
             var service = new Vault.Services.BoxArtService(_settings);
-            var missing = games
-                .Where(g => string.IsNullOrEmpty(g.BoxArtPath) || !System.IO.File.Exists(g.BoxArtPath))
-                .ToList();
-
+            var missing = tiles.Where(t => !t.HasBoxArt).ToList();
             if (missing.Count == 0) return;
 
             using var db = new VaultContext();
             bool anyUpdated = false;
 
-            foreach (var game in missing)
+            foreach (var tile in missing)
             {
-                string? path = await service.GetBoxArtAsync(game);
+                string? path = await service.GetBoxArtAsync(tile.Game);
                 if (path != null)
                 {
-                    game.BoxArtPath = path;
-                    anyUpdated = true;
+                    // Update ViewModel — binding auto-updates the UI
+                    Dispatcher.Invoke(() => tile.BoxArtPath = path);
 
-                    var dbGame = await db.Games.FindAsync(game.Id);
+                    var dbGame = await db.Games.FindAsync(tile.Id);
                     if (dbGame != null) dbGame.BoxArtPath = path;
-
-                    Dispatcher.Invoke(() =>
-                    {
-                        int idx = _filteredGames.IndexOf(game);
-                        if (idx >= 0 && idx < GamesWrapPanel.Children.Count)
-                        {
-                            GamesWrapPanel.Children.RemoveAt(idx);
-                            GamesWrapPanel.Children.Insert(idx, MakeGameTile(game));
-                        }
-                    });
+                    anyUpdated = true;
                 }
             }
 
@@ -87,12 +81,7 @@ namespace Vault.Views
             PlatformPanel.Children.Clear();
             PlatformPanel.Children.Add(MakePlatformButton("All", _allGames.Count));
 
-            var platforms = _allGames
-                .GroupBy(g => g.Platform)
-                .OrderBy(g => g.Key)
-                .ToList();
-
-            foreach (var group in platforms)
+            foreach (var group in _allGames.GroupBy(g => g.Platform).OrderBy(g => g.Key))
                 PlatformPanel.Children.Add(MakePlatformButton(group.Key, group.Count()));
         }
 
@@ -108,7 +97,7 @@ namespace Vault.Views
                 Foreground = platform == _currentPlatform ? Brushes.White
                     : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#b2bec3")),
                 BorderThickness = new Thickness(0),
-                Cursor = System.Windows.Input.Cursors.Hand,
+                Cursor = Cursors.Hand,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 Padding = new Thickness(16, 0, 8, 0),
                 FontFamily = new FontFamily("Segoe UI"),
@@ -135,7 +124,11 @@ namespace Vault.Views
             var template = new ControlTemplate(typeof(Button));
             var borderFactory = new FrameworkElementFactory(typeof(Border));
             borderFactory.SetBinding(Border.BackgroundProperty,
-                new System.Windows.Data.Binding("Background") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+                new System.Windows.Data.Binding("Background")
+                {
+                    RelativeSource = new System.Windows.Data.RelativeSource(
+                        System.Windows.Data.RelativeSourceMode.TemplatedParent)
+                });
             borderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
             borderFactory.SetValue(Border.MarginProperty, new Thickness(6, 1, 6, 1));
             var contentFactory = new FrameworkElementFactory(typeof(ContentPresenter));
@@ -184,183 +177,65 @@ namespace Vault.Views
 
         private void ApplyFilters()
         {
-            if (GamesWrapPanel == null) return;
+            if (GamesItemsControl == null) return;
             if (_allGames == null) return;
 
-            _filteredGames = _allGames.ToList();
+            var filtered = _allGames.AsEnumerable();
 
             if (_currentPlatform != "All")
-                _filteredGames = _filteredGames.Where(g => g.Platform == _currentPlatform).ToList();
+                filtered = filtered.Where(g => g.Platform == _currentPlatform);
 
             if (_currentStatus == "Downloaded")
-                _filteredGames = _filteredGames.Where(g => g.IsDownloaded).ToList();
+                filtered = filtered.Where(g => g.IsDownloaded);
             else if (_currentStatus != "All")
-                _filteredGames = _filteredGames.Where(g => g.Status == _currentStatus).ToList();
+                filtered = filtered.Where(g => g.Status == _currentStatus);
 
             int sortIdx = SortCombo?.SelectedIndex ?? 0;
-            _filteredGames = sortIdx switch
+            filtered = sortIdx switch
             {
-                0 => _filteredGames.OrderBy(g => g.Title).ToList(),
-                1 => _filteredGames.OrderByDescending(g => g.Title).ToList(),
-                2 => _filteredGames.OrderByDescending(g => g.Year).ToList(),
-                3 => _filteredGames.OrderBy(g => g.Year).ToList(),
-                4 => _filteredGames.OrderBy(g => g.Platform).ThenBy(g => g.Title).ToList(),
-                5 => _filteredGames.OrderByDescending(g => g.PlaytimeMinutes).ToList(),
-                _ => _filteredGames
+                0 => filtered.OrderBy(g => g.Title),
+                1 => filtered.OrderByDescending(g => g.Title),
+                2 => filtered.OrderByDescending(g => g.Year),
+                3 => filtered.OrderBy(g => g.Year),
+                4 => filtered.OrderBy(g => g.Platform).ThenBy(g => g.Title),
+                5 => filtered.OrderByDescending(g => g.PlaytimeMinutes),
+                _ => filtered
             };
+
+            var list = filtered.ToList();
 
             if (TxtGameCount != null)
-                TxtGameCount.Text = $"{_filteredGames.Count} games";
+                TxtGameCount.Text = $"{list.Count} games";
 
-            if (_isGridView) RenderGrid();
-            else RenderList();
-        }
-
-        private void RenderGrid()
-        {
-            GamesWrapPanel.Children.Clear();
-            foreach (var game in _filteredGames)
-                GamesWrapPanel.Children.Add(MakeGameTile(game));
-
-            _ = FetchMissingBoxArtAsync(_filteredGames.Take(30).ToList());
-        }
-
-        private void RenderList()
-        {
-            GamesListView.ItemsSource = _filteredGames.Select(g => new
+            if (_isGridView)
             {
-                g.Title,
-                g.Platform,
-                g.Year,
-                g.Status,
-                PlaytimeDisplay = g.PlaytimeMinutes > 0
-                    ? $"{g.PlaytimeMinutes / 60}h {g.PlaytimeMinutes % 60}m" : "-",
-                SizeDisplay = g.FileSizeGB.HasValue ? $"{g.FileSizeGB:F1} GB" : "-"
-            }).ToList();
-        }
+                _tiles = new ObservableCollection<GameTileViewModel>(
+                    list.Select(g => new GameTileViewModel(g)));
+                GamesItemsControl.ItemsSource = _tiles;
 
-        private Border MakeGameTile(Game game)
-        {
-            var tile = new Border
-            {
-                Width = 150,
-                Height = 210,
-                Margin = new Thickness(6),
-                CornerRadius = new CornerRadius(8),
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16213e")),
-                Cursor = System.Windows.Input.Cursors.Hand,
-                ClipToBounds = true
-            };
-
-            var grid = new Grid();
-
-            if (!string.IsNullOrEmpty(game.BoxArtPath) && System.IO.File.Exists(game.BoxArtPath))
-            {
-                grid.Children.Add(new Image
-                {
-                    Source = new BitmapImage(new Uri(game.BoxArtPath)),
-                    Stretch = Stretch.UniformToFill
-                });
+                // Fetch art for first visible batch
+                _ = FetchMissingBoxArtAsync(_tiles.Take(30).ToList());
             }
             else
             {
-                var placeholder = new Border
+                GamesListView.ItemsSource = list.Select(g => new
                 {
-                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0f3460"))
-                };
-                placeholder.Child = new TextBlock
-                {
-                    Text = game.Title,
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#b2bec3")),
-                    FontFamily = new FontFamily("Segoe UI"),
-                    FontSize = 12,
-                    TextWrapping = TextWrapping.Wrap,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    TextAlignment = TextAlignment.Center,
-                    Margin = new Thickness(8)
-                };
-                grid.Children.Add(placeholder);
+                    g.Title,
+                    g.Platform,
+                    g.Year,
+                    g.Status,
+                    PlaytimeDisplay = g.PlaytimeMinutes > 0
+                        ? $"{g.PlaytimeMinutes / 60}h {g.PlaytimeMinutes % 60}m" : "-",
+                    SizeDisplay = g.FileSizeGB.HasValue ? $"{g.FileSizeGB:F1} GB" : "-"
+                }).ToList();
             }
-
-            var gradient = new Border { VerticalAlignment = VerticalAlignment.Bottom, Height = 70 };
-            gradient.Background = new LinearGradientBrush(
-                new GradientStopCollection
-                {
-                    new GradientStop(Colors.Transparent, 0),
-                    new GradientStop(Color.FromArgb(230, 22, 33, 62), 1)
-                },
-                new Point(0, 0), new Point(0, 1));
-            grid.Children.Add(gradient);
-
-            var info = new StackPanel
-            {
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(8, 0, 8, 8)
-            };
-
-            var badge = new Border
-            {
-                Background = new SolidColorBrush(GetPlatformColor(game.Platform)),
-                CornerRadius = new CornerRadius(3),
-                Padding = new Thickness(5, 1, 5, 1),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 4)
-            };
-            badge.Child = new TextBlock
-            {
-                Text = GetPlatformShort(game.Platform),
-                Foreground = Brushes.White,
-                FontSize = 9,
-                FontWeight = FontWeights.Bold,
-                FontFamily = new FontFamily("Segoe UI")
-            };
-            info.Children.Add(badge);
-
-            var statusPanel = new StackPanel { Orientation = Orientation.Horizontal };
-            statusPanel.Children.Add(new System.Windows.Shapes.Ellipse
-            {
-                Width = 7,
-                Height = 7,
-                Fill = new SolidColorBrush(GetStatusColor(game.Status)),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 4, 0)
-            });
-            statusPanel.Children.Add(new TextBlock
-            {
-                Text = game.Status,
-                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#b2bec3")),
-                FontSize = 10,
-                FontFamily = new FontFamily("Segoe UI"),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            info.Children.Add(statusPanel);
-            grid.Children.Add(info);
-
-            if (!game.IsDownloaded)
-            {
-                var overlay = new Border
-                {
-                    Background = new SolidColorBrush(Color.FromArgb(180, 0, 0, 0))
-                };
-                overlay.Child = new TextBlock
-                {
-                    Text = "⬇ Not Downloaded",
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#636e72")),
-                    FontSize = 11,
-                    FontFamily = new FontFamily("Segoe UI"),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                grid.Children.Add(overlay);
-            }
-
-            tile.Child = grid;
-            tile.MouseLeftButtonUp += (s, e) => OpenGameDetail(game);
-            return tile;
         }
 
-        private void OpenGameDetail(Game game) { }
+        private void OnGameClicked(GameTileViewModel? tile)
+        {
+            if (tile == null) return;
+            // Detail panel — next step
+        }
 
         public void SetViewMode(bool isGrid)
         {
@@ -374,68 +249,26 @@ namespace Vault.Views
         {
             if (string.IsNullOrWhiteSpace(query)) { ApplyFilters(); return; }
             query = query.ToLower();
-            _filteredGames = _allGames
+            var list = _allGames
                 .Where(g => g.Title.ToLower().Contains(query) ||
                             g.Platform.ToLower().Contains(query) ||
                             (g.Genre != null && g.Genre.ToLower().Contains(query)))
                 .ToList();
             if (TxtGameCount != null)
-                TxtGameCount.Text = $"{_filteredGames.Count} games";
-            if (_isGridView) RenderGrid(); else RenderList();
+                TxtGameCount.Text = $"{list.Count} games";
+            _tiles = new ObservableCollection<GameTileViewModel>(
+                list.Select(g => new GameTileViewModel(g)));
+            GamesItemsControl.ItemsSource = _tiles;
         }
+    }
 
-        private static Color GetPlatformColor(string platform)
-        {
-            return platform?.ToLower() switch
-            {
-                var p when p.Contains("pc") => (Color)ColorConverter.ConvertFromString("#0078d4"),
-                var p when p.Contains("ps5") => (Color)ColorConverter.ConvertFromString("#003087"),
-                var p when p.Contains("ps4") => (Color)ColorConverter.ConvertFromString("#003087"),
-                var p when p.Contains("ps3") => (Color)ColorConverter.ConvertFromString("#003087"),
-                var p when p.Contains("ps2") => (Color)ColorConverter.ConvertFromString("#003087"),
-                var p when p.Contains("switch") => (Color)ColorConverter.ConvertFromString("#e60012"),
-                var p when p.Contains("xbox") => (Color)ColorConverter.ConvertFromString("#107c10"),
-                var p when p.Contains("gamecube") || p.Contains("wii") => (Color)ColorConverter.ConvertFromString("#6a0dad"),
-                var p when p.Contains("psp") || p.Contains("vita") => (Color)ColorConverter.ConvertFromString("#003087"),
-                _ => (Color)ColorConverter.ConvertFromString("#2d3561")
-            };
-        }
-
-        private static string GetPlatformShort(string platform)
-        {
-            return platform?.ToLower() switch
-            {
-                var p when p.Contains("playstation 5") || p.Contains("ps5") => "PS5",
-                var p when p.Contains("playstation 4") || p.Contains("ps4") => "PS4",
-                var p when p.Contains("playstation 3") || p.Contains("ps3") => "PS3",
-                var p when p.Contains("playstation 2") || p.Contains("ps2") => "PS2",
-                var p when p.Contains("switch 2") => "NSW2",
-                var p when p.Contains("switch") => "NSW",
-                var p when p.Contains("xbox 360") => "X360",
-                var p when p.Contains("xbox") => "XBOX",
-                var p when p.Contains("gamecube") => "GCN",
-                var p when p.Contains("wii u") => "WiiU",
-                var p when p.Contains("wii") => "Wii",
-                var p when p.Contains("pc") => "PC",
-                var p when p.Contains("psp") => "PSP",
-                var p when p.Contains("vita") => "Vita",
-                var p when p.Contains("3ds") => "3DS",
-                var p when p.Contains("ds") => "DS",
-                _ => platform?.Length > 6 ? platform[..6] : platform ?? "?"
-            };
-        }
-
-        private static Color GetStatusColor(string status)
-        {
-            return status?.ToLower() switch
-            {
-                "playing" => (Color)ColorConverter.ConvertFromString("#00b894"),
-                "completed" => (Color)ColorConverter.ConvertFromString("#0984e3"),
-                "not started" => (Color)ColorConverter.ConvertFromString("#636e72"),
-                "on hold" => (Color)ColorConverter.ConvertFromString("#fdcb6e"),
-                "dropped" => (Color)ColorConverter.ConvertFromString("#d63031"),
-                _ => (Color)ColorConverter.ConvertFromString("#636e72")
-            };
-        }
+    // Simple relay command helper
+    public class RelayCommand<T> : ICommand
+    {
+        private readonly Action<T?> _execute;
+        public RelayCommand(Action<T?> execute) => _execute = execute;
+        public bool CanExecute(object? parameter) => true;
+        public void Execute(object? parameter) => _execute(parameter is T t ? t : default);
+        public event EventHandler? CanExecuteChanged;
     }
 }

@@ -228,8 +228,104 @@
 
                 <!-- Grid view -->
                 <ScrollViewer Grid.Row="1" x:Name="GridScrollViewer"
-                              VerticalScrollBarVisibility="Auto">
-                    <WrapPanel x:Name="GamesWrapPanel" Margin="12,4,12,16"/>
+                              VerticalScrollBarVisibility="Auto"
+                              CanContentScroll="True">
+                    <ItemsControl x:Name="GamesItemsControl"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                  VirtualizingPanel.ScrollUnit="Pixel"
+                                  ScrollViewer.CanContentScroll="True">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="150" Height="210" Margin="6"
+                                        CornerRadius="8" ClipToBounds="True"
+                                        Cursor="Hand"
+                                        Background="#16213e"
+                                        Tag="{Binding}">
+                                    <Border.InputBindings>
+                                        <MouseBinding MouseAction="LeftClick"
+                                                      Command="{Binding DataContext.GameClickCommand,
+                                                      RelativeSource={RelativeSource AncestorType=Page}}"
+                                                      CommandParameter="{Binding}"/>
+                                    </Border.InputBindings>
+                                    <Grid>
+                                        <!-- Box art -->
+                                        <Image Source="{Binding BoxArtPath}" Stretch="UniformToFill"/>
+                                        <!-- Placeholder when no art -->
+                                        <Border Background="#0f3460">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasBoxArt}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="{Binding Title}" Foreground="#b2bec3"
+                                                       FontFamily="Segoe UI" FontSize="12"
+                                                       TextWrapping="Wrap" TextAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8"/>
+                                        </Border>
+                                        <!-- Gradient -->
+                                        <Border VerticalAlignment="Bottom" Height="70">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                    <GradientStop Color="Transparent" Offset="0"/>
+                                                    <GradientStop Color="#E616213e" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                        </Border>
+                                        <!-- Info -->
+                                        <StackPanel VerticalAlignment="Bottom" Margin="8,0,8,8">
+                                            <Border Background="{Binding PlatformColor}"
+                                                    CornerRadius="3" Padding="5,1"
+                                                    HorizontalAlignment="Left" Margin="0,0,0,4">
+                                                <TextBlock Text="{Binding PlatformShort}"
+                                                           Foreground="White" FontSize="9"
+                                                           FontWeight="Bold" FontFamily="Segoe UI"/>
+                                            </Border>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Ellipse Width="7" Height="7" Margin="0,0,4,0"
+                                                         VerticalAlignment="Center"
+                                                         Fill="{Binding StatusColor}"/>
+                                                <TextBlock Text="{Binding Status}"
+                                                           Foreground="#b2bec3" FontSize="10"
+                                                           FontFamily="Segoe UI"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <!-- Not downloaded overlay -->
+                                        <Border Background="#B4000000">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsDownloaded}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="⬇ Not Downloaded"
+                                                       Foreground="#636e72" FontSize="11"
+                                                       FontFamily="Segoe UI"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </ScrollViewer>
 
                 <!-- List view -->
