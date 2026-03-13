@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -40,14 +41,52 @@ namespace Vault.Views
             ApplyFilters();
         }
 
+        private async Task FetchMissingBoxArtAsync(List<Game> games)
+        {
+            if (string.IsNullOrEmpty(_settings.SteamGridDbApiKey)) return;
+
+            var service = new Vault.Services.BoxArtService(_settings);
+            var missing = games
+                .Where(g => string.IsNullOrEmpty(g.BoxArtPath) || !System.IO.File.Exists(g.BoxArtPath))
+                .ToList();
+
+            if (missing.Count == 0) return;
+
+            using var db = new VaultContext();
+            bool anyUpdated = false;
+
+            foreach (var game in missing)
+            {
+                string? path = await service.GetBoxArtAsync(game);
+                if (path != null)
+                {
+                    game.BoxArtPath = path;
+                    anyUpdated = true;
+
+                    var dbGame = await db.Games.FindAsync(game.Id);
+                    if (dbGame != null) dbGame.BoxArtPath = path;
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        int idx = _filteredGames.IndexOf(game);
+                        if (idx >= 0 && idx < GamesWrapPanel.Children.Count)
+                        {
+                            GamesWrapPanel.Children.RemoveAt(idx);
+                            GamesWrapPanel.Children.Insert(idx, MakeGameTile(game));
+                        }
+                    });
+                }
+            }
+
+            if (anyUpdated)
+                await db.SaveChangesAsync();
+        }
+
         private void BuildPlatformList()
         {
             PlatformPanel.Children.Clear();
-
-            // All button
             PlatformPanel.Children.Add(MakePlatformButton("All", _allGames.Count));
 
-            // Group by platform
             var platforms = _allGames
                 .GroupBy(g => g.Platform)
                 .OrderBy(g => g.Key)
@@ -91,7 +130,6 @@ namespace Vault.Views
                 VerticalAlignment = VerticalAlignment.Center,
                 FontSize = 11
             });
-
             btn.Content = panel;
 
             var template = new ControlTemplate(typeof(Button));
@@ -106,7 +144,6 @@ namespace Vault.Views
             borderFactory.AppendChild(contentFactory);
             template.VisualTree = borderFactory;
             btn.Template = template;
-
             btn.Click += PlatformBtn_Click;
             return btn;
         }
@@ -137,7 +174,6 @@ namespace Vault.Views
                 case "Not Started": BtnNotStarted.Style = active; break;
                 case "Downloaded": BtnDownloaded.Style = active; break;
             }
-
             ApplyFilters();
         }
 
@@ -150,6 +186,7 @@ namespace Vault.Views
         {
             if (GamesWrapPanel == null) return;
             if (_allGames == null) return;
+
             _filteredGames = _allGames.ToList();
 
             if (_currentPlatform != "All")
@@ -160,7 +197,6 @@ namespace Vault.Views
             else if (_currentStatus != "All")
                 _filteredGames = _filteredGames.Where(g => g.Status == _currentStatus).ToList();
 
-            // Sort
             int sortIdx = SortCombo?.SelectedIndex ?? 0;
             _filteredGames = sortIdx switch
             {
@@ -176,10 +212,8 @@ namespace Vault.Views
             if (TxtGameCount != null)
                 TxtGameCount.Text = $"{_filteredGames.Count} games";
 
-            if (_isGridView)
-                RenderGrid();
-            else
-                RenderList();
+            if (_isGridView) RenderGrid();
+            else RenderList();
         }
 
         private void RenderGrid()
@@ -187,6 +221,8 @@ namespace Vault.Views
             GamesWrapPanel.Children.Clear();
             foreach (var game in _filteredGames)
                 GamesWrapPanel.Children.Add(MakeGameTile(game));
+
+            _ = FetchMissingBoxArtAsync(_filteredGames.Take(30).ToList());
         }
 
         private void RenderList()
@@ -218,15 +254,13 @@ namespace Vault.Views
 
             var grid = new Grid();
 
-            // Box art or placeholder
             if (!string.IsNullOrEmpty(game.BoxArtPath) && System.IO.File.Exists(game.BoxArtPath))
             {
-                var img = new Image
+                grid.Children.Add(new Image
                 {
                     Source = new BitmapImage(new Uri(game.BoxArtPath)),
                     Stretch = Stretch.UniformToFill
-                };
-                grid.Children.Add(img);
+                });
             }
             else
             {
@@ -234,7 +268,7 @@ namespace Vault.Views
                 {
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0f3460"))
                 };
-                var placeholderText = new TextBlock
+                placeholder.Child = new TextBlock
                 {
                     Text = game.Title,
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#b2bec3")),
@@ -246,16 +280,10 @@ namespace Vault.Views
                     TextAlignment = TextAlignment.Center,
                     Margin = new Thickness(8)
                 };
-                placeholder.Child = placeholderText;
                 grid.Children.Add(placeholder);
             }
 
-            // Gradient overlay at bottom
-            var gradient = new Border
-            {
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Height = 70
-            };
+            var gradient = new Border { VerticalAlignment = VerticalAlignment.Bottom, Height = 70 };
             gradient.Background = new LinearGradientBrush(
                 new GradientStopCollection
                 {
@@ -265,18 +293,15 @@ namespace Vault.Views
                 new Point(0, 0), new Point(0, 1));
             grid.Children.Add(gradient);
 
-            // Bottom info panel
             var info = new StackPanel
             {
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Margin = new Thickness(8, 0, 8, 8)
             };
 
-            // Platform badge
-            var platformColor = GetPlatformColor(game.Platform);
             var badge = new Border
             {
-                Background = new SolidColorBrush(platformColor),
+                Background = new SolidColorBrush(GetPlatformColor(game.Platform)),
                 CornerRadius = new CornerRadius(3),
                 Padding = new Thickness(5, 1, 5, 1),
                 HorizontalAlignment = HorizontalAlignment.Left,
@@ -292,17 +317,15 @@ namespace Vault.Views
             };
             info.Children.Add(badge);
 
-            // Status dot + indicator
             var statusPanel = new StackPanel { Orientation = Orientation.Horizontal };
-            var dot = new System.Windows.Shapes.Ellipse
+            statusPanel.Children.Add(new System.Windows.Shapes.Ellipse
             {
                 Width = 7,
                 Height = 7,
                 Fill = new SolidColorBrush(GetStatusColor(game.Status)),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 4, 0)
-            };
-            statusPanel.Children.Add(dot);
+            });
             statusPanel.Children.Add(new TextBlock
             {
                 Text = game.Status,
@@ -312,19 +335,15 @@ namespace Vault.Views
                 VerticalAlignment = VerticalAlignment.Center
             });
             info.Children.Add(statusPanel);
-
             grid.Children.Add(info);
 
-            // Downloaded indicator
             if (!game.IsDownloaded)
             {
-                var notDownloaded = new Border
+                var overlay = new Border
                 {
-                    Background = new SolidColorBrush(Color.FromArgb(180, 0, 0, 0)),
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                    VerticalAlignment = VerticalAlignment.Stretch
+                    Background = new SolidColorBrush(Color.FromArgb(180, 0, 0, 0))
                 };
-                notDownloaded.Child = new TextBlock
+                overlay.Child = new TextBlock
                 {
                     Text = "⬇ Not Downloaded",
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#636e72")),
@@ -333,7 +352,7 @@ namespace Vault.Views
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 };
-                grid.Children.Add(notDownloaded);
+                grid.Children.Add(overlay);
             }
 
             tile.Child = grid;
@@ -341,10 +360,7 @@ namespace Vault.Views
             return tile;
         }
 
-        private void OpenGameDetail(Game game)
-        {
-            // Will be implemented in next step
-        }
+        private void OpenGameDetail(Game game) { }
 
         public void SetViewMode(bool isGrid)
         {
@@ -356,18 +372,15 @@ namespace Vault.Views
 
         public void Search(string query)
         {
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                ApplyFilters();
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(query)) { ApplyFilters(); return; }
             query = query.ToLower();
             _filteredGames = _allGames
                 .Where(g => g.Title.ToLower().Contains(query) ||
                             g.Platform.ToLower().Contains(query) ||
                             (g.Genre != null && g.Genre.ToLower().Contains(query)))
                 .ToList();
-            TxtGameCount.Text = $"{_filteredGames.Count} games";
+            if (TxtGameCount != null)
+                TxtGameCount.Text = $"{_filteredGames.Count} games";
             if (_isGridView) RenderGrid(); else RenderList();
         }
 
