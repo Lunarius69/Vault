@@ -1,5 +1,4 @@
-﻿using System.Configuration;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using Vault.Models;
 using Vault.Views;
@@ -9,6 +8,7 @@ namespace Vault
     public partial class MainWindow : Window
     {
         private AppSettings _settings;
+        private GamesPage? _gamesPage;
 
         public MainWindow()
         {
@@ -19,7 +19,6 @@ namespace Vault
 
         private void NavigateTo(string section)
         {
-            // Reset all sidebar buttons
             BtnGames.Style = (Style)FindResource("SidebarButton");
             BtnShows.Style = (Style)FindResource("SidebarButton");
             BtnMovies.Style = (Style)FindResource("SidebarButton");
@@ -30,26 +29,27 @@ namespace Vault
             {
                 case "Games":
                     BtnGames.Style = (Style)FindResource("SidebarButtonActive");
-                    MainFrame.Navigate(new GamesPage(_settings));
+                    _gamesPage = new GamesPage(_settings);
+                    MainContent.Content = _gamesPage;
                     break;
                 case "Shows":
                     BtnShows.Style = (Style)FindResource("SidebarButtonActive");
-                    MainFrame.Navigate(new MediaPage(_settings, "Show"));
+                    MainContent.Content = new MediaPage(_settings, "Show");
                     break;
                 case "Movies":
                     BtnMovies.Style = (Style)FindResource("SidebarButtonActive");
-                    MainFrame.Navigate(new MediaPage(_settings, "Movie"));
+                    MainContent.Content = new MediaPage(_settings, "Movie");
                     break;
                 case "Anime":
                     BtnAnime.Style = (Style)FindResource("SidebarButtonActive");
-                    MainFrame.Navigate(new MediaPage(_settings, "Anime"));
+                    MainContent.Content = new MediaPage(_settings, "Anime");
                     break;
                 case "Wishlist":
                     BtnWishlist.Style = (Style)FindResource("SidebarButtonActive");
-                    MainFrame.Navigate(new WishlistPage(_settings));
+                    MainContent.Content = new WishlistPage(_settings);
                     break;
                 case "Settings":
-                    MainFrame.Navigate(new SettingsPage());
+                    MainContent.Content = new SettingsPage();
                     break;
             }
         }
@@ -63,25 +63,25 @@ namespace Vault
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            // Will be wired up to each page's search method
+            _gamesPage?.Search(SearchBox.Text);
         }
 
         private void BtnGridView_Click(object sender, RoutedEventArgs e)
         {
-            BtnGridView.Background = System.Windows.Media.Brushes.Transparent;
-            BtnListView.Background = System.Windows.Media.Brushes.Transparent;
-            var redBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#e94560")!;
-            var darkBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#2d3561")!;
-            BtnGridView.Background = redBrush;
-            BtnListView.Background = darkBrush;
+            var red = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#e94560")!;
+            var dark = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#2d3561")!;
+            BtnGridView.Background = red;
+            BtnListView.Background = dark;
+            _gamesPage?.SetViewMode(true);
         }
 
         private void BtnListView_Click(object sender, RoutedEventArgs e)
         {
-            var redBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#e94560")!;
-            var darkBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#2d3561")!;
-            BtnGridView.Background = darkBrush;
-            BtnListView.Background = redBrush;
+            var red = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#e94560")!;
+            var dark = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom("#2d3561")!;
+            BtnGridView.Background = dark;
+            BtnListView.Background = red;
+            _gamesPage?.SetViewMode(false);
         }
     }
 }

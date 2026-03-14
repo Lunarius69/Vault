@@ -8,13 +8,14 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Vault.Database;
 using Vault.Models;
 using Vault.ViewModels;
 
 namespace Vault.Views
 {
-    public partial class GamesPage : Page
+    public partial class GamesPage : UserControl
     {
         private AppSettings _settings;
         private List<Game> _allGames = new();
@@ -22,6 +23,7 @@ namespace Vault.Views
         private string _currentPlatform = "All";
         private string _currentStatus = "All";
         private bool _isGridView = true;
+        private bool _detailOpen = false;
 
         public ICommand GameClickCommand { get; }
 
@@ -31,6 +33,10 @@ namespace Vault.Views
             _settings = settings;
             GameClickCommand = new RelayCommand<GameTileViewModel>(OnGameClicked);
             DataContext = this;
+
+            DetailPanel.CloseRequested += (s, e) => CloseDetailPanel();
+            DetailPanel.GameUpdated += (s, e) => ApplyFilters();
+
             Loaded += GamesPage_Loaded;
         }
 
@@ -60,15 +66,20 @@ namespace Vault.Views
 
             foreach (var tile in missing)
             {
-                string? path = await service.GetBoxArtAsync(tile.Game);
-                if (path != null)
+                try
                 {
-                    // Update ViewModel — binding auto-updates the UI
-                    Dispatcher.Invoke(() => tile.BoxArtPath = path);
-
-                    var dbGame = await db.Games.FindAsync(tile.Id);
-                    if (dbGame != null) dbGame.BoxArtPath = path;
-                    anyUpdated = true;
+                    string? path = await service.GetBoxArtAsync(tile.Game);
+                    if (path != null)
+                    {
+                        Dispatcher.Invoke(() => tile.BoxArtPath = path);
+                        var dbGame = await db.Games.FindAsync(tile.Id);
+                        if (dbGame != null) dbGame.BoxArtPath = path;
+                        anyUpdated = true;
+                    }
+                }
+                catch
+                {
+                    // Silently skip box art errors (bad API key, network issues, etc.)
                 }
             }
 
@@ -212,8 +223,6 @@ namespace Vault.Views
                 _tiles = new ObservableCollection<GameTileViewModel>(
                     list.Select(g => new GameTileViewModel(g)));
                 GamesItemsControl.ItemsSource = _tiles;
-
-                // Fetch art for first visible batch
                 _ = FetchMissingBoxArtAsync(_tiles.Take(30).ToList());
             }
             else
@@ -234,7 +243,47 @@ namespace Vault.Views
         private void OnGameClicked(GameTileViewModel? tile)
         {
             if (tile == null) return;
-            // Detail panel — next step
+            DetailPanel.LoadGame(tile.Game);
+            OpenDetailPanel();
+        }
+
+        private void GameTile_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.DataContext is GameTileViewModel tile)
+            {
+                DetailPanel.LoadGame(tile.Game);
+                OpenDetailPanel();
+            }
+        }
+
+        private void OpenDetailPanel()
+        {
+            if (_detailOpen) return;
+            _detailOpen = true;
+            DetailPanel.Visibility = Visibility.Visible;
+
+            var anim = new GridLengthAnimation
+            {
+                From = new GridLength(0),
+                To = new GridLength(320),
+                Duration = new Duration(TimeSpan.FromMilliseconds(200))
+            };
+            DetailColumn.BeginAnimation(ColumnDefinition.WidthProperty, anim);
+        }
+
+        private void CloseDetailPanel()
+        {
+            if (!_detailOpen) return;
+            _detailOpen = false;
+
+            var anim = new GridLengthAnimation
+            {
+                From = new GridLength(320),
+                To = new GridLength(0),
+                Duration = new Duration(TimeSpan.FromMilliseconds(200))
+            };
+            anim.Completed += (s, e) => DetailPanel.Visibility = Visibility.Collapsed;
+            DetailColumn.BeginAnimation(ColumnDefinition.WidthProperty, anim);
         }
 
         public void SetViewMode(bool isGrid)
@@ -262,7 +311,27 @@ namespace Vault.Views
         }
     }
 
-    // Simple relay command helper
+    public class GridLengthAnimation : System.Windows.Media.Animation.AnimationTimeline
+    {
+        public GridLength From { get; set; }
+        public GridLength To { get; set; }
+
+        public override Type TargetPropertyType => typeof(GridLength);
+
+        protected override System.Windows.Freezable CreateInstanceCore()
+            => new GridLengthAnimation();
+
+        public override object GetCurrentValue(object defaultOriginValue,
+            object defaultDestinationValue,
+            System.Windows.Media.Animation.AnimationClock animationClock)
+        {
+            double progress = animationClock.CurrentProgress ?? 0;
+            double fromVal = From.Value;
+            double toVal = To.Value;
+            return new GridLength(fromVal + (toVal - fromVal) * progress);
+        }
+    }
+
     public class RelayCommand<T> : ICommand
     {
         private readonly Action<T?> _execute;

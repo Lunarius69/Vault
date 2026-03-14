@@ -4,10 +4,10 @@
         Title="Vault" Height="800" Width="1280"
         MinHeight="600" MinWidth="900"
         WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
         Background="#1a1a2e">
 
     <Window.Resources>
-        <!-- Sidebar button style -->
         <Style x:Key="SidebarButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="#b2bec3"/>
@@ -38,7 +38,6 @@
             </Setter>
         </Style>
 
-        <!-- Active sidebar button style -->
         <Style x:Key="SidebarButtonActive" TargetType="Button" BasedOn="{StaticResource SidebarButton}">
             <Setter Property="Background" Value="#e94560"/>
             <Setter Property="Foreground" Value="#ffffff"/>
@@ -61,51 +60,40 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Logo -->
                 <Border Grid.Row="0" BorderBrush="#2d3561" BorderThickness="0,0,0,1">
                     <TextBlock Text="🎮 VAULT"
-                               Foreground="#e94560"
-                               FontSize="22"
-                               FontWeight="Bold"
-                               FontFamily="Segoe UI"
-                               VerticalAlignment="Center"
-                               Margin="20,0,0,0"/>
+                               Foreground="#e94560" FontSize="22"
+                               FontWeight="Bold" FontFamily="Segoe UI"
+                               VerticalAlignment="Center" Margin="20,0,0,0"/>
                 </Border>
 
-                <!-- Nav buttons -->
                 <StackPanel Grid.Row="1" Margin="0,16,0,0">
                     <TextBlock Text="LIBRARY" Foreground="#636e72"
                                FontSize="10" FontWeight="Bold"
-                               FontFamily="Segoe UI"
-                               Margin="28,8,0,4"/>
+                               FontFamily="Segoe UI" Margin="28,8,0,4"/>
 
                     <Button x:Name="BtnGames" Content="🎮   Games"
                             Style="{StaticResource SidebarButtonActive}"
                             Click="BtnGames_Click"/>
-
                     <Button x:Name="BtnShows" Content="📺   TV Shows"
                             Style="{StaticResource SidebarButton}"
                             Click="BtnShows_Click"/>
-
                     <Button x:Name="BtnMovies" Content="🎬   Movies"
                             Style="{StaticResource SidebarButton}"
                             Click="BtnMovies_Click"/>
-
                     <Button x:Name="BtnAnime" Content="🎌   Anime"
                             Style="{StaticResource SidebarButton}"
                             Click="BtnAnime_Click"/>
 
                     <TextBlock Text="GAMES" Foreground="#636e72"
                                FontSize="10" FontWeight="Bold"
-                               FontFamily="Segoe UI"
-                               Margin="28,16,0,4"/>
+                               FontFamily="Segoe UI" Margin="28,16,0,4"/>
 
                     <Button x:Name="BtnWishlist" Content="❤   Wishlist"
                             Style="{StaticResource SidebarButton}"
                             Click="BtnWishlist_Click"/>
                 </StackPanel>
 
-                <!-- Settings button -->
                 <Button Grid.Row="2" x:Name="BtnSettings"
                         Content="⚙   Settings"
                         Style="{StaticResource SidebarButton}"
@@ -131,7 +119,6 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Search box -->
                         <Border Grid.Column="0" Background="#0f3460"
                                 CornerRadius="8" Height="36"
                                 VerticalAlignment="Center"
@@ -150,8 +137,7 @@
                                          BorderThickness="0"
                                          Foreground="#ffffff"
                                          CaretBrush="#ffffff"
-                                         FontSize="13"
-                                         FontFamily="Segoe UI"
+                                         FontSize="13" FontFamily="Segoe UI"
                                          VerticalAlignment="Center"
                                          Padding="0,0,12,0"
                                          TextChanged="SearchBox_TextChanged">
@@ -164,8 +150,7 @@
                                                             <TextBlock x:Name="placeholder"
                                                                        Text="Search your library..."
                                                                        Foreground="#636e72"
-                                                                       FontFamily="Segoe UI"
-                                                                       FontSize="13"
+                                                                       FontFamily="Segoe UI" FontSize="13"
                                                                        VerticalAlignment="Center"
                                                                        IsHitTestVisible="False"
                                                                        Visibility="Collapsed"/>
@@ -190,7 +175,6 @@
                             </Grid>
                         </Border>
 
-                        <!-- View toggle -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal"
                                     VerticalAlignment="Center" Margin="16,0,0,0">
                             <Button x:Name="BtnGridView" Content="⊞"
@@ -201,10 +185,8 @@
                                     Click="BtnGridView_Click">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}"
-                                                CornerRadius="6">
-                                            <ContentPresenter HorizontalAlignment="Center"
-                                                            VerticalAlignment="Center"/>
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                     </ControlTemplate>
                                 </Button.Template>
@@ -218,10 +200,8 @@
                                     Click="BtnListView_Click">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}"
-                                                CornerRadius="6">
-                                            <ContentPresenter HorizontalAlignment="Center"
-                                                            VerticalAlignment="Center"/>
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                     </ControlTemplate>
                                 </Button.Template>
@@ -230,11 +210,8 @@
                     </Grid>
                 </Border>
 
-                <!-- Page content frame -->
-                <Frame x:Name="MainFrame"
-                       Grid.Row="1"
-                       NavigationUIVisibility="Hidden"
-                       Background="#1a1a2e"/>
+                <!-- Page content — ContentControl instead of Frame -->
+                <ContentControl x:Name="MainContent" Grid.Row="1" Background="#1a1a2e"/>
             </Grid>
         </Border>
     </Grid>
