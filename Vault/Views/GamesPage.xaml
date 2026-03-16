@@ -77,20 +77,26 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="FILTER:" Foreground="#636e72" FontSize="11"
-                               FontFamily="Segoe UI" FontWeight="Bold"
-                               VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <Button x:Name="BtnAll" Content="All" Style="{StaticResource FilterButtonActive}"
-                            Click="FilterBtn_Click" Tag="All"/>
-                    <Button x:Name="BtnPlaying" Content="Playing" Style="{StaticResource FilterButton}"
-                            Click="FilterBtn_Click" Tag="Playing"/>
-                    <Button x:Name="BtnCompleted" Content="Completed" Style="{StaticResource FilterButton}"
-                            Click="FilterBtn_Click" Tag="Completed"/>
-                    <Button x:Name="BtnNotStarted" Content="Not Started" Style="{StaticResource FilterButton}"
-                            Click="FilterBtn_Click" Tag="Not Started"/>
-                    <Button x:Name="BtnDownloaded" Content="Downloaded" Style="{StaticResource FilterButton}"
-                            Click="FilterBtn_Click" Tag="Downloaded"/>
-                </StackPanel>
+    <TextBlock Text="FILTER:" Foreground="#636e72" FontSize="11"
+               FontFamily="Segoe UI" FontWeight="Bold"
+               VerticalAlignment="Center" Margin="0,0,12,0"/>
+    <Button x:Name="BtnAll" Content="All" Style="{StaticResource FilterButtonActive}"
+            Click="FilterBtn_Click" Tag="All"/>
+    <Button x:Name="BtnPlaying" Content="Playing" Style="{StaticResource FilterButton}"
+            Click="FilterBtn_Click" Tag="Playing"/>
+    <Button x:Name="BtnCompleted" Content="Completed" Style="{StaticResource FilterButton}"
+            Click="FilterBtn_Click" Tag="Completed"/>
+    <Button x:Name="BtnNotStarted" Content="Not Started" Style="{StaticResource FilterButton}"
+            Click="FilterBtn_Click" Tag="Not Started"/>
+    <Button x:Name="BtnDownloaded" Content="Downloaded" Style="{StaticResource FilterButton}"
+            Click="FilterBtn_Click" Tag="Downloaded"/>
+
+    <!-- Scan ROMs button -->
+    <Button x:Name="BtnScanRoms" Content="⟳  Scan ROMs"
+            Style="{StaticResource FilterButton}"
+            Click="BtnScanRoms_Click"
+            Margin="16,0,0,0"/>
+</StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="SORT:" Foreground="#636e72" FontSize="11"

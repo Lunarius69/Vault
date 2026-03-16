@@ -25,7 +25,6 @@ namespace Vault.Views
         private bool _isGridView = true;
         private bool _isFetchingArt = false;
 
-
         public event EventHandler<Game>? GameSelected;
 
         public GamesPage(AppSettings settings)
@@ -51,7 +50,6 @@ namespace Vault.Views
             int found = await detector.ScanAndUpdateAsync();
             if (found > 0)
             {
-                // Reload so IsDownloaded flags are fresh
                 _allGames = await db.Games
                     .Where(g => !g.IsWishlist)
                     .OrderBy(g => g.Title)
@@ -64,57 +62,86 @@ namespace Vault.Views
         }
 
         private async Task FetchMissingBoxArtAsync(List<GameTileViewModel> tiles)
-{
-    if (string.IsNullOrEmpty(_settings.SteamGridDbApiKey)) return;
-    if (_isFetchingArt) return; // Don't restart if already running
-
-    var missing = tiles.Where(t => !t.HasBoxArt).ToList();
-    if (missing.Count == 0) return;
-
-    _isFetchingArt = true;
-
-    try
-    {
-        var service = new BoxArtService(_settings);
-        using var db = new VaultContext();
-        bool anyUpdated = false;
-        var dbLock = new object();
-        var semaphore = new System.Threading.SemaphoreSlim(5);
-
-        var tasks = missing.Select(async tile =>
         {
-            await semaphore.WaitAsync();
+            if (string.IsNullOrEmpty(_settings.SteamGridDbApiKey)) return;
+            if (_isFetchingArt) return;
+
+            var missing = tiles.Where(t => !t.HasBoxArt).ToList();
+            if (missing.Count == 0) return;
+
+            _isFetchingArt = true;
+
             try
             {
-                string? path = await service.GetBoxArtAsync(tile.Game);
-                if (path != null)
+                var service = new BoxArtService(_settings);
+                using var db = new VaultContext();
+                bool anyUpdated = false;
+                var dbLock = new object();
+                var semaphore = new System.Threading.SemaphoreSlim(5);
+
+                var tasks = missing.Select(async tile =>
                 {
-                    Dispatcher.Invoke(() => tile.BoxArtPath = path);
-                    lock (dbLock)
+                    await semaphore.WaitAsync();
+                    try
                     {
-                        var dbGame = db.Games.Find(tile.Id);
-                        if (dbGame != null)
+                        string? path = await service.GetBoxArtAsync(tile.Game);
+                        if (path != null)
                         {
-                            dbGame.BoxArtPath = path;
-                            anyUpdated = true;
+                            Dispatcher.Invoke(() => tile.BoxArtPath = path);
+                            lock (dbLock)
+                            {
+                                var dbGame = db.Games.Find(tile.Id);
+                                if (dbGame != null)
+                                {
+                                    dbGame.BoxArtPath = path;
+                                    anyUpdated = true;
+                                }
+                            }
                         }
                     }
-                }
+                    catch { }
+                    finally { semaphore.Release(); }
+                });
+
+                await Task.WhenAll(tasks);
+
+                if (anyUpdated)
+                    await db.SaveChangesAsync();
             }
-            catch { }
-            finally { semaphore.Release(); }
-        });
+            finally
+            {
+                _isFetchingArt = false;
+            }
+        }
 
-        await Task.WhenAll(tasks);
+        private void BuildPlatformList()
+        {
+            PlatformPanel.Children.Clear();
+            PlatformPanel.Children.Add(MakePlatformButton("All", _allGames.Count));
 
-        if (anyUpdated)
-            await db.SaveChangesAsync();
-    }
-    finally
-    {
-        _isFetchingArt = false;
-    }
-}
+            foreach (var group in _allGames.GroupBy(g => g.Platform).OrderBy(g => g.Key))
+                PlatformPanel.Children.Add(MakePlatformButton(group.Key, group.Count()));
+        }
+
+        private Button MakePlatformButton(string platform, int count)
+        {
+            var btn = new Button
+            {
+                Tag = platform,
+                Height = 36,
+                Background = platform == _currentPlatform
+                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#e94560"))
+                    : Brushes.Transparent,
+                Foreground = platform == _currentPlatform
+                    ? Brushes.White
+                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#b2bec3")),
+                BorderThickness = new Thickness(0),
+                Cursor = Cursors.Hand,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Padding = new Thickness(16, 0, 8, 0),
+                FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 13
+            };
 
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
             panel.Children.Add(new TextBlock
@@ -192,80 +219,120 @@ namespace Vault.Views
         }
 
         private void ApplyFilters()
-{
-    if (GamesItemsControl == null || _allGames == null) return;
-
-    var filtered = _allGames.AsEnumerable();
-
-    if (_currentPlatform != "All")
-        filtered = filtered.Where(g => g.Platform == _currentPlatform);
-
-    if (_currentStatus == "Downloaded")
-        filtered = filtered.Where(g => g.IsDownloaded);
-    else if (_currentStatus != "All")
-        filtered = filtered.Where(g => g.Status == _currentStatus);
-
-    int sortIdx = SortCombo?.SelectedIndex ?? 0;
-    filtered = sortIdx switch
-    {
-        0 => filtered.OrderBy(g => g.Title),
-        1 => filtered.OrderByDescending(g => g.Title),
-        2 => filtered.OrderByDescending(g => g.Year),
-        3 => filtered.OrderBy(g => g.Year),
-        4 => filtered.OrderBy(g => g.Platform).ThenBy(g => g.Title),
-        5 => filtered.OrderByDescending(g => g.PlaytimeMinutes),
-        _ => filtered
-    };
-
-    var list = filtered.ToList();
-
-    if (TxtGameCount != null)
-        TxtGameCount.Text = $"{list.Count} games";
-
-    if (_isGridView)
-    {
-        // Build a lookup of already-loaded box art paths from existing tiles
-        // so re-sorting doesn't throw away art that was already downloaded
-        var existingArt = _tiles.ToDictionary(t => t.Id, t => t.BoxArtPath);
-
-        _tiles = new ObservableCollection<GameTileViewModel>(
-            list.Select(g =>
-            {
-                var tile = new GameTileViewModel(g);
-                // Restore already-cached art path so image shows instantly
-                if (existingArt.TryGetValue(g.Id, out string? cachedPath)
-                    && cachedPath != null)
-                    tile.BoxArtPath = cachedPath;
-                return tile;
-            }));
-
-        GamesItemsControl.ItemsSource = _tiles;
-
-        // Only fetch art that is still genuinely missing
-        var stillMissing = _tiles.Where(t => !t.HasBoxArt).ToList();
-        if (stillMissing.Count > 0)
-            _ = FetchMissingBoxArtAsync(stillMissing);
-    }
-    else
-    {
-        GamesListView.ItemsSource = list.Select(g => new
         {
-            g.Title,
-            g.Platform,
-            g.Year,
-            g.Status,
-            PlaytimeDisplay = g.PlaytimeMinutes > 0
-                ? $"{g.PlaytimeMinutes / 60}h {g.PlaytimeMinutes % 60}m" : "-",
-            SizeDisplay = g.FileSizeGB.HasValue
-                ? $"{g.FileSizeGB:F1} GB" : "-"
-        }).ToList();
-    }
-}
+            if (GamesItemsControl == null || _allGames == null) return;
+
+            var filtered = _allGames.AsEnumerable();
+
+            if (_currentPlatform != "All")
+                filtered = filtered.Where(g => g.Platform == _currentPlatform);
+
+            if (_currentStatus == "Downloaded")
+                filtered = filtered.Where(g => g.IsDownloaded);
+            else if (_currentStatus != "All")
+                filtered = filtered.Where(g => g.Status == _currentStatus);
+
+            int sortIdx = SortCombo?.SelectedIndex ?? 0;
+            filtered = sortIdx switch
+            {
+                0 => filtered.OrderBy(g => g.Title),
+                1 => filtered.OrderByDescending(g => g.Title),
+                2 => filtered.OrderByDescending(g => g.Year),
+                3 => filtered.OrderBy(g => g.Year),
+                4 => filtered.OrderBy(g => g.Platform).ThenBy(g => g.Title),
+                5 => filtered.OrderByDescending(g => g.PlaytimeMinutes),
+                _ => filtered
+            };
+
+            var list = filtered.ToList();
+
+            if (TxtGameCount != null)
+                TxtGameCount.Text = $"{list.Count} games";
+
+            if (_isGridView)
+            {
+                // Preserve already-loaded box art so re-sorting is instant
+                var existingArt = _tiles.ToDictionary(t => t.Id, t => t.BoxArtPath);
+
+                _tiles = new ObservableCollection<GameTileViewModel>(
+                    list.Select(g =>
+                    {
+                        var tile = new GameTileViewModel(g);
+                        if (existingArt.TryGetValue(g.Id, out string? cachedPath)
+                            && cachedPath != null)
+                            tile.BoxArtPath = cachedPath;
+                        return tile;
+                    }));
+
+                GamesItemsControl.ItemsSource = _tiles;
+
+                var stillMissing = _tiles.Where(t => !t.HasBoxArt).ToList();
+                if (stillMissing.Count > 0)
+                    _ = FetchMissingBoxArtAsync(stillMissing);
+            }
+            else
+            {
+                GamesListView.ItemsSource = list.Select(g => new
+                {
+                    g.Title,
+                    g.Platform,
+                    g.Year,
+                    g.Status,
+                    PlaytimeDisplay = g.PlaytimeMinutes > 0
+                        ? $"{g.PlaytimeMinutes / 60}h {g.PlaytimeMinutes % 60}m" : "-",
+                    SizeDisplay = g.FileSizeGB.HasValue
+                        ? $"{g.FileSizeGB:F1} GB" : "-"
+                }).ToList();
+            }
+        }
 
         private void GameTile_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.DataContext is GameTileViewModel tile)
                 GameSelected?.Invoke(this, tile.Game);
+        }
+
+        private async void BtnScanRoms_Click(object sender, RoutedEventArgs e)
+        {
+            BtnScanRoms.IsEnabled = false;
+            BtnScanRoms.Content = "⟳  Scanning...";
+
+            try
+            {
+                var importer = new RomImportService(_settings);
+                var progress = new Progress<string>(msg =>
+                    Dispatcher.Invoke(() => BtnScanRoms.Content = $"⟳  {msg}"));
+
+                int imported = await importer.ScanAndImportAsync(progress);
+
+                using var db = new VaultContext();
+                _allGames = await db.Games
+                    .Where(g => !g.IsWishlist)
+                    .OrderBy(g => g.Title)
+                    .ToListAsync();
+
+                BuildPlatformList();
+                ApplyFilters();
+
+                BtnScanRoms.Content = imported > 0
+                    ? $"✓  {imported} imported"
+                    : "✓  Up to date";
+
+                await Task.Delay(3000);
+                BtnScanRoms.Content = "⟳  Scan ROMs";
+            }
+            catch (Exception ex)
+            {
+                BtnScanRoms.Content = "✗  Scan failed";
+                MessageBox.Show($"ROM scan failed: {ex.Message}",
+                    "Scan Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await Task.Delay(2000);
+                BtnScanRoms.Content = "⟳  Scan ROMs";
+            }
+            finally
+            {
+                BtnScanRoms.IsEnabled = true;
+            }
         }
 
         public void SetViewMode(bool isGrid)
@@ -289,8 +356,18 @@ namespace Vault.Views
             if (TxtGameCount != null)
                 TxtGameCount.Text = $"{list.Count} games";
 
+            var existingArt = _tiles.ToDictionary(t => t.Id, t => t.BoxArtPath);
+
             _tiles = new ObservableCollection<GameTileViewModel>(
-                list.Select(g => new GameTileViewModel(g)));
+                list.Select(g =>
+                {
+                    var tile = new GameTileViewModel(g);
+                    if (existingArt.TryGetValue(g.Id, out string? cachedPath)
+                        && cachedPath != null)
+                        tile.BoxArtPath = cachedPath;
+                    return tile;
+                }));
+
             GamesItemsControl.ItemsSource = _tiles;
         }
     }
