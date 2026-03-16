@@ -29,35 +29,51 @@ namespace Vault.Services
             _http.Timeout = TimeSpan.FromSeconds(15);
         }
 
-        // Returns local path to box art, downloads if not cached
         public async Task<string?> GetBoxArtAsync(Game game)
         {
             if (string.IsNullOrEmpty(_apiKey)) return null;
 
-            // Check cache first
             string safeName = MakeSafeFileName(game.Title);
             string cachedPath = Path.Combine(_cacheFolder, $"{game.Id}_{safeName}.jpg");
             if (File.Exists(cachedPath)) return cachedPath;
 
             try
             {
-                // Step 1: Search for the game
                 int? gameId = await SearchGameAsync(game.Title);
                 if (gameId == null) return null;
 
-                // Step 2: Get grid image (box art)
                 string? imageUrl = await GetGridImageUrlAsync(gameId.Value);
                 if (imageUrl == null) return null;
 
-                // Step 3: Download and cache
                 byte[] imageData = await _http.GetByteArrayAsync(imageUrl);
                 await File.WriteAllBytesAsync(cachedPath, imageData);
                 return cachedPath;
             }
-            catch
+            catch { return null; }
+        }
+
+        // New: fetches wide hero/banner image (1920x620 style) from SteamGridDB
+        public async Task<string?> GetHeroAsync(Game game)
+        {
+            if (string.IsNullOrEmpty(_apiKey)) return null;
+
+            string safeName = MakeSafeFileName(game.Title);
+            string cachedPath = Path.Combine(_cacheFolder, $"{game.Id}_{safeName}_hero.jpg");
+            if (File.Exists(cachedPath)) return cachedPath;
+
+            try
             {
-                return null;
+                int? gameId = await SearchGameAsync(game.Title);
+                if (gameId == null) return null;
+
+                string? imageUrl = await GetHeroImageUrlAsync(gameId.Value);
+                if (imageUrl == null) return null;
+
+                byte[] imageData = await _http.GetByteArrayAsync(imageUrl);
+                await File.WriteAllBytesAsync(cachedPath, imageData);
+                return cachedPath;
             }
+            catch { return null; }
         }
 
         private async Task<int?> SearchGameAsync(string title)
@@ -81,13 +97,10 @@ namespace Vault.Services
 
         private async Task<string?> GetGridImageUrlAsync(int gameId)
         {
-            // Try portrait grids first (best for game tiles)
             string url = $"https://www.steamgriddb.com/api/v2/grids/game/{gameId}?dimensions=600x900";
-
             var response = await _http.GetAsync(url);
             if (!response.IsSuccessStatusCode)
             {
-                // Fallback to any grid
                 url = $"https://www.steamgriddb.com/api/v2/grids/game/{gameId}";
                 response = await _http.GetAsync(url);
                 if (!response.IsSuccessStatusCode) return null;
@@ -97,10 +110,23 @@ namespace Vault.Services
             using var doc = JsonDocument.Parse(json);
 
             if (!doc.RootElement.GetProperty("success").GetBoolean()) return null;
-
             var data = doc.RootElement.GetProperty("data");
             if (data.GetArrayLength() == 0) return null;
+            return data[0].GetProperty("url").GetString();
+        }
 
+        private async Task<string?> GetHeroImageUrlAsync(int gameId)
+        {
+            string url = $"https://www.steamgriddb.com/api/v2/heroes/game/{gameId}";
+            var response = await _http.GetAsync(url);
+            if (!response.IsSuccessStatusCode) return null;
+
+            string json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            if (!doc.RootElement.GetProperty("success").GetBoolean()) return null;
+            var data = doc.RootElement.GetProperty("data");
+            if (data.GetArrayLength() == 0) return null;
             return data[0].GetProperty("url").GetString();
         }
 

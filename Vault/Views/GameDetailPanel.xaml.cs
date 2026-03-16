@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32;
 using System;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -10,33 +11,94 @@ using Vault.Services;
 
 namespace Vault.Views
 {
-    public partial class GameDetailPanel : UserControl
+    public partial class GameDetailPage : UserControl
     {
-        private Game? _game;
+        private Game _game;
         private readonly AppSettings _settings;
         private readonly HltbService _hltb = new();
         private readonly RetroAchievementsService? _ra;
+        private readonly BoxArtService? _boxArt;
+        public event EventHandler? BackRequested;
 
-        public event EventHandler? CloseRequested;
-        public event EventHandler? GameUpdated;
-
-        public GameDetailPanel()
+        public GameDetailPage(Game game, AppSettings settings)
         {
             InitializeComponent();
-            _settings = AppSettings.Load();
-            if (!string.IsNullOrEmpty(_settings.RetroAchievementsApiKey))
-                _ra = new RetroAchievementsService(_settings);
+            _game = game;
+            _settings = settings;
+
+            if (!string.IsNullOrEmpty(settings.SteamGridDbApiKey))
+                _boxArt = new BoxArtService(settings);
+
+            if (!string.IsNullOrEmpty(settings.RetroAchievementsApiKey))
+                _ra = new RetroAchievementsService(settings);
+
+            Loaded += (s, e) => LoadGame();
         }
 
-        public async void LoadGame(Game game)
+        private async void LoadGame()
         {
-            _game = game;
+            var game = _game;
+
+            // Title, platform, status
+            TxtTitle.Text = game.Title;
+            TxtPlatform.Text = game.Platform;
+            PlatformBadge.Background = new SolidColorBrush(GetPlatformColor(game.Platform));
+            TxtStatus.Text = game.Status;
+            StatusDot.Fill = new SolidColorBrush(GetStatusColor(game.Status));
+
+            // Info fields
+            TxtYear.Text = game.Year?.ToString() ?? "—";
+            TxtGenre.Text = string.IsNullOrEmpty(game.Genre) ? "—" : game.Genre;
+            TxtSize.Text = game.FileSizeGB.HasValue ? $"{game.FileSizeGB:F1} GB" : "—";
+            TxtPlaytime.Text = game.PlaytimeMinutes > 0
+                ? $"{game.PlaytimeMinutes / 60}h {game.PlaytimeMinutes % 60}m" : "—";
+            TxtLastPlayed.Text = game.LastPlayed.HasValue
+                ? game.LastPlayed.Value.ToString("MMM d, yyyy") : "Never";
+            TxtDescription.Text = string.IsNullOrEmpty(game.Description)
+                ? "No description available." : game.Description;
+
+            // Launch button label
+            UpdateLaunchButton();
 
             // Box art
-            if (!string.IsNullOrEmpty(game.BoxArtPath) &&
-                System.IO.File.Exists(game.BoxArtPath))
+            LoadBoxArt();
+
+            // HLTB — show cached, fetch if missing
+            RefreshHltb();
+            if (!game.HltbMain.HasValue)
+                await FetchHltbAsync();
+
+            // Achievements
+            RefreshAchievements();
+            if (_ra?.IsConfigured == true && game.AchievementsTotal == null)
+                await FetchAchievementsAsync();
+
+            // Banner — fetch in background, show when ready
+            if (_boxArt != null)
             {
-                ImgBoxArt.Source = new BitmapImage(new Uri(game.BoxArtPath));
+                string? heroPath = await _boxArt.GetHeroAsync(game);
+                if (!string.IsNullOrEmpty(heroPath) && File.Exists(heroPath))
+                {
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.UriSource = new Uri(heroPath);
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.EndInit();
+                    ImgBanner.Source = bmp;
+                }
+            }
+        }
+
+        private void LoadBoxArt()
+        {
+            if (!string.IsNullOrEmpty(_game.BoxArtPath) && File.Exists(_game.BoxArtPath))
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(_game.BoxArtPath);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+                ImgBoxArt.Source = bmp;
                 ImgBoxArt.Visibility = Visibility.Visible;
                 PlaceholderBg.Visibility = Visibility.Collapsed;
                 TxtPlaceholder.Visibility = Visibility.Collapsed;
@@ -46,60 +108,21 @@ namespace Vault.Views
                 ImgBoxArt.Visibility = Visibility.Collapsed;
                 PlaceholderBg.Visibility = Visibility.Visible;
                 TxtPlaceholder.Visibility = Visibility.Visible;
-                TxtPlaceholder.Text = game.Title;
+                TxtPlaceholder.Text = _game.Title;
             }
-
-            // Core info
-            TxtTitle.Text = game.Title;
-            TxtPlatform.Text = game.Platform;
-            PlatformBadge.Background = new SolidColorBrush(GetPlatformColor(game.Platform));
-            TxtStatus.Text = game.Status;
-            StatusDot.Fill = new SolidColorBrush(GetStatusColor(game.Status));
-            TxtYear.Text = game.Year?.ToString() ?? "—";
-            TxtSize.Text = game.FileSizeGB.HasValue ? $"{game.FileSizeGB:F1} GB" : "—";
-            TxtGenre.Text = string.IsNullOrEmpty(game.Genre) ? "—" : game.Genre;
-
-            // Playtime
-            RefreshPlaytime();
-
-            // Last played
-            TxtLastPlayed.Text = game.LastPlayed.HasValue
-                ? game.LastPlayed.Value.ToString("MMM d, yyyy") : "Never";
-
-            // HLTB — show cached first, then fetch if missing
-            RefreshHltb();
-            if (!game.HltbMain.HasValue)
-                _ = FetchHltbAsync();
-
-            // Achievements
-            RefreshAchievements();
-            if (_ra?.IsConfigured == true && game.AchievementsTotal == null)
-                _ = FetchAchievementsAsync();
-
-            // Description
-            TxtDescription.Text = string.IsNullOrEmpty(game.Description)
-                ? "No description available." : game.Description;
-
-            // Launch button
-            BtnLaunch.IsEnabled = game.IsDownloaded &&
-                (!string.IsNullOrEmpty(game.ExePath) ||
-                 !string.IsNullOrEmpty(game.EmulatorPath));
-            BtnLaunch.Content = game.IsDownloaded ? "▶  Launch Game" : "▶  Not Downloaded";
-
-            TxtMessage.Visibility = Visibility.Collapsed;
         }
 
-        private void RefreshPlaytime()
+        private void UpdateLaunchButton()
         {
-            if (_game == null) return;
-            TxtPlaytime.Text = _game.PlaytimeMinutes > 0
-                ? $"{_game.PlaytimeMinutes / 60}h {_game.PlaytimeMinutes % 60}m"
-                : "—";
+            bool canLaunch = _game.IsDownloaded &&
+                (!string.IsNullOrEmpty(_game.ExePath) ||
+                 !string.IsNullOrEmpty(_game.EmulatorPath));
+            BtnLaunch.IsEnabled = canLaunch;
+            BtnLaunch.Content = canLaunch ? "▶   Launch Game" : "▶   Not Downloaded";
         }
 
         private void RefreshHltb()
         {
-            if (_game == null) return;
             TxtHltbMain.Text = _game.HltbMain.HasValue ? $"{_game.HltbMain:F0}h" : "—";
             TxtHltbSides.Text = _game.HltbMainSides.HasValue ? $"{_game.HltbMainSides:F0}h" : "—";
             TxtHltbComplete.Text = _game.HltbComplete.HasValue ? $"{_game.HltbComplete:F0}h" : "—";
@@ -107,14 +130,12 @@ namespace Vault.Views
 
         private async System.Threading.Tasks.Task FetchHltbAsync()
         {
-            if (_game == null) return;
             TxtHltbMain.Text = "...";
-
             var (main, sides, complete) = await _hltb.FetchAsync(_game.Title);
-            if (main == null && sides == null && complete == null) 
-            { 
-                RefreshHltb(); 
-                return; 
+            if (main == null && sides == null && complete == null)
+            {
+                RefreshHltb();
+                return;
             }
 
             using var db = new VaultContext();
@@ -130,56 +151,58 @@ namespace Vault.Views
             _game.HltbMain = main;
             _game.HltbMainSides = sides;
             _game.HltbComplete = complete;
-
-            Dispatcher.Invoke(RefreshHltb);
+            RefreshHltb();
         }
 
         private void RefreshAchievements()
         {
-            if (_game == null) return;
             if (_game.AchievementsTotal is > 0)
             {
                 int earned = _game.AchievementsEarned ?? 0;
                 int total = _game.AchievementsTotal.Value;
-                double pct = total > 0 ? (earned / (double)total) * 100 : 0;
-                TxtAchievements.Text = $"{earned} / {total}  ({pct:F0}%)";
-                AchievementBar.Value = pct;
-                AchievementsPanel.Visibility = Visibility.Visible;
+                double pct = total > 0 ? (earned / (double)total) * 100.0 : 0;
+                TxtAchievements.Text = $"{earned} / {total}";
+                TxtAchievementPct.Text = $"{pct:F0}% complete";
+
+                // Update bar width after layout
+                Dispatcher.InvokeAsync(() =>
+                {
+                    double maxWidth = AchievementsPanel.ActualWidth - 40;
+                    AchievementBarFill.Width = maxWidth > 0 ? maxWidth * pct / 100.0 : 0;
+                }, System.Windows.Threading.DispatcherPriority.Loaded);
             }
-            else if (_ra?.IsConfigured == false)
+            else if (_ra == null)
             {
-                TxtAchievements.Text = "Set RetroAchievements API key in Settings";
-                AchievementBar.Value = 0;
-                AchievementsPanel.Visibility = Visibility.Visible;
+                TxtAchievements.Text = "—";
+                TxtAchievementPct.Text = "Set RetroAchievements key in Settings";
             }
             else
             {
                 TxtAchievements.Text = "—";
-                AchievementBar.Value = 0;
+                TxtAchievementPct.Text = "Not found on RetroAchievements";
             }
         }
 
         private async System.Threading.Tasks.Task FetchAchievementsAsync()
         {
-            if (_game == null || _ra == null) return;
+            if (_ra == null) return;
             TxtAchievements.Text = "...";
 
-            // Find RA game ID if we don't have it
-            int? raId = _game.RetroAchievementsGameId;
-            if (raId == null)
-                raId = await _ra.FindGameIdAsync(_game.Title, _game.Platform);
+            int? raId = _game.RetroAchievementsGameId
+                ?? await _ra.FindGameIdAsync(_game.Title, _game.Platform);
 
-            if (raId == null) 
-            { 
-                Dispatcher.Invoke(() => TxtAchievements.Text = "Not found on RA"); 
-                return; 
+            if (raId == null)
+            {
+                TxtAchievements.Text = "—";
+                TxtAchievementPct.Text = "Not found on RetroAchievements";
+                return;
             }
 
             var result = await _ra.GetAchievementsAsync(raId.Value);
-            if (result == null) 
-            { 
-                Dispatcher.Invoke(() => TxtAchievements.Text = "—"); 
-                return; 
+            if (result == null)
+            {
+                TxtAchievements.Text = "—";
+                return;
             }
 
             using var db = new VaultContext();
@@ -195,16 +218,14 @@ namespace Vault.Views
             _game.RetroAchievementsGameId = raId;
             _game.AchievementsEarned = result.Value.Earned;
             _game.AchievementsTotal = result.Value.Total;
-
-            Dispatcher.Invoke(RefreshAchievements);
+            RefreshAchievements();
         }
 
-        private void BtnClose_Click(object sender, RoutedEventArgs e)
-            => CloseRequested?.Invoke(this, EventArgs.Empty);
+        private void BtnBack_Click(object sender, RoutedEventArgs e)
+            => BackRequested?.Invoke(this, EventArgs.Empty);
 
         private void BtnLaunch_Click(object sender, RoutedEventArgs e)
         {
-            if (_game == null) return;
             try
             {
                 var launcher = new GameLauncher(_settings);
@@ -219,14 +240,11 @@ namespace Vault.Views
 
         private async void BtnSetPath_Click(object sender, RoutedEventArgs e)
         {
-            if (_game == null) return;
-
             var dialog = new OpenFileDialog
             {
                 Title = $"Select executable for {_game.Title}",
                 Filter = "Executables|*.exe;*.bat|ROM files|*.iso;*.bin;*.cue;*.chd;*.nsp;*.xci;*.gba;*.nds;*.n64;*.z64|All files|*.*"
             };
-
             if (dialog.ShowDialog() != true) return;
 
             string path = dialog.FileName;
@@ -243,15 +261,12 @@ namespace Vault.Views
             _game.IsDownloaded = true;
             await db.SaveChangesAsync();
 
-            BtnLaunch.IsEnabled = true;
-            BtnLaunch.Content = "▶  Launch Game";
+            UpdateLaunchButton();
             ShowMessage("Path saved!", "#00b894");
-            GameUpdated?.Invoke(this, EventArgs.Empty);
         }
 
         private async void BtnEditStatus_Click(object sender, RoutedEventArgs e)
         {
-            if (_game == null) return;
             string[] statuses = { "Not Started", "Playing", "Completed", "On Hold", "Dropped" };
             int idx = Array.IndexOf(statuses, _game.Status);
             string newStatus = statuses[(idx + 1) % statuses.Length];
@@ -267,7 +282,6 @@ namespace Vault.Views
             TxtStatus.Text = newStatus;
             StatusDot.Fill = new SolidColorBrush(GetStatusColor(newStatus));
             ShowMessage($"Status: {newStatus}", "#00b894");
-            GameUpdated?.Invoke(this, EventArgs.Empty);
         }
 
         private void ShowMessage(string msg, string color)
@@ -278,9 +292,8 @@ namespace Vault.Views
             TxtMessage.Visibility = Visibility.Visible;
         }
 
-        private static Color GetPlatformColor(string platform)
-        {
-            return platform?.ToLower() switch
+        private static Color GetPlatformColor(string platform) =>
+            platform?.ToLower() switch
             {
                 var p when p != null && p.Contains("pc") => (Color)ColorConverter.ConvertFromString("#0078d4"),
                 var p when p != null && (p.Contains("ps5") || p.Contains("playstation 5")) => (Color)ColorConverter.ConvertFromString("#003087"),
@@ -292,11 +305,9 @@ namespace Vault.Views
                 var p when p != null && (p.Contains("gamecube") || p.Contains("wii")) => (Color)ColorConverter.ConvertFromString("#6a0dad"),
                 _ => (Color)ColorConverter.ConvertFromString("#2d3561")
             };
-        }
 
-        private static Color GetStatusColor(string status)
-        {
-            return status?.ToLower() switch
+        private static Color GetStatusColor(string status) =>
+            status?.ToLower() switch
             {
                 "playing" => (Color)ColorConverter.ConvertFromString("#00b894"),
                 "completed" => (Color)ColorConverter.ConvertFromString("#0984e3"),
@@ -305,6 +316,5 @@ namespace Vault.Views
                 "dropped" => (Color)ColorConverter.ConvertFromString("#d63031"),
                 _ => (Color)ColorConverter.ConvertFromString("#636e72")
             };
-        }
     }
 }

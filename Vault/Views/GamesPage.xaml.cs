@@ -8,9 +8,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using Vault.Database;
 using Vault.Models;
+using Vault.Services;
 using Vault.ViewModels;
 
 namespace Vault.Views
@@ -23,97 +23,98 @@ namespace Vault.Views
         private string _currentPlatform = "All";
         private string _currentStatus = "All";
         private bool _isGridView = true;
-        private bool _detailOpen = false;
+        private bool _isFetchingArt = false;
 
-        public ICommand GameClickCommand { get; }
+
+        public event EventHandler<Game>? GameSelected;
 
         public GamesPage(AppSettings settings)
         {
             InitializeComponent();
             _settings = settings;
-            GameClickCommand = new RelayCommand<GameTileViewModel>(OnGameClicked);
             DataContext = this;
-
-            DetailPanel.CloseRequested += (s, e) => CloseDetailPanel();
-            DetailPanel.GameUpdated += (s, e) => ApplyFilters();
-
             Loaded += GamesPage_Loaded;
         }
 
         private async void GamesPage_Loaded(object sender, RoutedEventArgs e)
         {
             LoadingOverlay.Visibility = Visibility.Visible;
+
             using var db = new VaultContext();
             _allGames = await db.Games
                 .Where(g => !g.IsWishlist)
                 .OrderBy(g => g.Title)
                 .ToListAsync();
+
+            // Auto-detect downloaded games from games folder
+            var detector = new AutoDetectService(_settings);
+            int found = await detector.ScanAndUpdateAsync();
+            if (found > 0)
+            {
+                // Reload so IsDownloaded flags are fresh
+                _allGames = await db.Games
+                    .Where(g => !g.IsWishlist)
+                    .OrderBy(g => g.Title)
+                    .ToListAsync();
+            }
+
             LoadingOverlay.Visibility = Visibility.Collapsed;
             BuildPlatformList();
             ApplyFilters();
         }
 
         private async Task FetchMissingBoxArtAsync(List<GameTileViewModel> tiles)
+{
+    if (string.IsNullOrEmpty(_settings.SteamGridDbApiKey)) return;
+    if (_isFetchingArt) return; // Don't restart if already running
+
+    var missing = tiles.Where(t => !t.HasBoxArt).ToList();
+    if (missing.Count == 0) return;
+
+    _isFetchingArt = true;
+
+    try
+    {
+        var service = new BoxArtService(_settings);
+        using var db = new VaultContext();
+        bool anyUpdated = false;
+        var dbLock = new object();
+        var semaphore = new System.Threading.SemaphoreSlim(5);
+
+        var tasks = missing.Select(async tile =>
         {
-            if (string.IsNullOrEmpty(_settings.SteamGridDbApiKey)) return;
-
-            var service = new Vault.Services.BoxArtService(_settings);
-            var missing = tiles.Where(t => !t.HasBoxArt).ToList();
-            if (missing.Count == 0) return;
-
-            using var db = new VaultContext();
-            bool anyUpdated = false;
-
-            foreach (var tile in missing)
+            await semaphore.WaitAsync();
+            try
             {
-                try
+                string? path = await service.GetBoxArtAsync(tile.Game);
+                if (path != null)
                 {
-                    string? path = await service.GetBoxArtAsync(tile.Game);
-                    if (path != null)
+                    Dispatcher.Invoke(() => tile.BoxArtPath = path);
+                    lock (dbLock)
                     {
-                        Dispatcher.Invoke(() => tile.BoxArtPath = path);
-                        var dbGame = await db.Games.FindAsync(tile.Id);
-                        if (dbGame != null) dbGame.BoxArtPath = path;
-                        anyUpdated = true;
+                        var dbGame = db.Games.Find(tile.Id);
+                        if (dbGame != null)
+                        {
+                            dbGame.BoxArtPath = path;
+                            anyUpdated = true;
+                        }
                     }
                 }
-                catch
-                {
-                    // Silently skip box art errors (bad API key, network issues, etc.)
-                }
             }
+            catch { }
+            finally { semaphore.Release(); }
+        });
 
-            if (anyUpdated)
-                await db.SaveChangesAsync();
-        }
+        await Task.WhenAll(tasks);
 
-        private void BuildPlatformList()
-        {
-            PlatformPanel.Children.Clear();
-            PlatformPanel.Children.Add(MakePlatformButton("All", _allGames.Count));
-
-            foreach (var group in _allGames.GroupBy(g => g.Platform).OrderBy(g => g.Key))
-                PlatformPanel.Children.Add(MakePlatformButton(group.Key, group.Count()));
-        }
-
-        private Button MakePlatformButton(string platform, int count)
-        {
-            var btn = new Button
-            {
-                Tag = platform,
-                Height = 36,
-                Background = platform == _currentPlatform
-                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#e94560"))
-                    : Brushes.Transparent,
-                Foreground = platform == _currentPlatform ? Brushes.White
-                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#b2bec3")),
-                BorderThickness = new Thickness(0),
-                Cursor = Cursors.Hand,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Padding = new Thickness(16, 0, 8, 0),
-                FontFamily = new FontFamily("Segoe UI"),
-                FontSize = 13
-            };
+        if (anyUpdated)
+            await db.SaveChangesAsync();
+    }
+    finally
+    {
+        _isFetchingArt = false;
+    }
+}
 
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
             panel.Children.Add(new TextBlock
@@ -126,7 +127,8 @@ namespace Vault.Views
             panel.Children.Add(new TextBlock
             {
                 Text = $"  {count}",
-                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#636e72")),
+                Foreground = new SolidColorBrush(
+                    (Color)ColorConverter.ConvertFromString("#636e72")),
                 VerticalAlignment = VerticalAlignment.Center,
                 FontSize = 11
             });
@@ -143,8 +145,10 @@ namespace Vault.Views
             borderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
             borderFactory.SetValue(Border.MarginProperty, new Thickness(6, 1, 6, 1));
             var contentFactory = new FrameworkElementFactory(typeof(ContentPresenter));
-            contentFactory.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-            contentFactory.SetValue(ContentPresenter.MarginProperty, new Thickness(4, 0, 0, 0));
+            contentFactory.SetValue(ContentPresenter.VerticalAlignmentProperty,
+                VerticalAlignment.Center);
+            contentFactory.SetValue(ContentPresenter.MarginProperty,
+                new Thickness(4, 0, 0, 0));
             borderFactory.AppendChild(contentFactory);
             template.VisualTree = borderFactory;
             btn.Template = template;
@@ -178,6 +182,7 @@ namespace Vault.Views
                 case "Not Started": BtnNotStarted.Style = active; break;
                 case "Downloaded": BtnDownloaded.Style = active; break;
             }
+
             ApplyFilters();
         }
 
@@ -187,103 +192,80 @@ namespace Vault.Views
         }
 
         private void ApplyFilters()
+{
+    if (GamesItemsControl == null || _allGames == null) return;
+
+    var filtered = _allGames.AsEnumerable();
+
+    if (_currentPlatform != "All")
+        filtered = filtered.Where(g => g.Platform == _currentPlatform);
+
+    if (_currentStatus == "Downloaded")
+        filtered = filtered.Where(g => g.IsDownloaded);
+    else if (_currentStatus != "All")
+        filtered = filtered.Where(g => g.Status == _currentStatus);
+
+    int sortIdx = SortCombo?.SelectedIndex ?? 0;
+    filtered = sortIdx switch
+    {
+        0 => filtered.OrderBy(g => g.Title),
+        1 => filtered.OrderByDescending(g => g.Title),
+        2 => filtered.OrderByDescending(g => g.Year),
+        3 => filtered.OrderBy(g => g.Year),
+        4 => filtered.OrderBy(g => g.Platform).ThenBy(g => g.Title),
+        5 => filtered.OrderByDescending(g => g.PlaytimeMinutes),
+        _ => filtered
+    };
+
+    var list = filtered.ToList();
+
+    if (TxtGameCount != null)
+        TxtGameCount.Text = $"{list.Count} games";
+
+    if (_isGridView)
+    {
+        // Build a lookup of already-loaded box art paths from existing tiles
+        // so re-sorting doesn't throw away art that was already downloaded
+        var existingArt = _tiles.ToDictionary(t => t.Id, t => t.BoxArtPath);
+
+        _tiles = new ObservableCollection<GameTileViewModel>(
+            list.Select(g =>
+            {
+                var tile = new GameTileViewModel(g);
+                // Restore already-cached art path so image shows instantly
+                if (existingArt.TryGetValue(g.Id, out string? cachedPath)
+                    && cachedPath != null)
+                    tile.BoxArtPath = cachedPath;
+                return tile;
+            }));
+
+        GamesItemsControl.ItemsSource = _tiles;
+
+        // Only fetch art that is still genuinely missing
+        var stillMissing = _tiles.Where(t => !t.HasBoxArt).ToList();
+        if (stillMissing.Count > 0)
+            _ = FetchMissingBoxArtAsync(stillMissing);
+    }
+    else
+    {
+        GamesListView.ItemsSource = list.Select(g => new
         {
-            if (GamesItemsControl == null) return;
-            if (_allGames == null) return;
-
-            var filtered = _allGames.AsEnumerable();
-
-            if (_currentPlatform != "All")
-                filtered = filtered.Where(g => g.Platform == _currentPlatform);
-
-            if (_currentStatus == "Downloaded")
-                filtered = filtered.Where(g => g.IsDownloaded);
-            else if (_currentStatus != "All")
-                filtered = filtered.Where(g => g.Status == _currentStatus);
-
-            int sortIdx = SortCombo?.SelectedIndex ?? 0;
-            filtered = sortIdx switch
-            {
-                0 => filtered.OrderBy(g => g.Title),
-                1 => filtered.OrderByDescending(g => g.Title),
-                2 => filtered.OrderByDescending(g => g.Year),
-                3 => filtered.OrderBy(g => g.Year),
-                4 => filtered.OrderBy(g => g.Platform).ThenBy(g => g.Title),
-                5 => filtered.OrderByDescending(g => g.PlaytimeMinutes),
-                _ => filtered
-            };
-
-            var list = filtered.ToList();
-
-            if (TxtGameCount != null)
-                TxtGameCount.Text = $"{list.Count} games";
-
-            if (_isGridView)
-            {
-                _tiles = new ObservableCollection<GameTileViewModel>(
-                    list.Select(g => new GameTileViewModel(g)));
-                GamesItemsControl.ItemsSource = _tiles;
-                _ = FetchMissingBoxArtAsync(_tiles.Take(30).ToList());
-            }
-            else
-            {
-                GamesListView.ItemsSource = list.Select(g => new
-                {
-                    g.Title,
-                    g.Platform,
-                    g.Year,
-                    g.Status,
-                    PlaytimeDisplay = g.PlaytimeMinutes > 0
-                        ? $"{g.PlaytimeMinutes / 60}h {g.PlaytimeMinutes % 60}m" : "-",
-                    SizeDisplay = g.FileSizeGB.HasValue ? $"{g.FileSizeGB:F1} GB" : "-"
-                }).ToList();
-            }
-        }
-
-        private void OnGameClicked(GameTileViewModel? tile)
-        {
-            if (tile == null) return;
-            DetailPanel.LoadGame(tile.Game);
-            OpenDetailPanel();
-        }
+            g.Title,
+            g.Platform,
+            g.Year,
+            g.Status,
+            PlaytimeDisplay = g.PlaytimeMinutes > 0
+                ? $"{g.PlaytimeMinutes / 60}h {g.PlaytimeMinutes % 60}m" : "-",
+            SizeDisplay = g.FileSizeGB.HasValue
+                ? $"{g.FileSizeGB:F1} GB" : "-"
+        }).ToList();
+    }
+}
 
         private void GameTile_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.DataContext is GameTileViewModel tile)
-            {
-                DetailPanel.LoadGame(tile.Game);
-                OpenDetailPanel();
-            }
-        }
-
-        private void OpenDetailPanel()
-        {
-            if (_detailOpen) return;
-            _detailOpen = true;
-            DetailPanel.Visibility = Visibility.Visible;
-
-            var anim = new GridLengthAnimation
-            {
-                From = new GridLength(0),
-                To = new GridLength(320),
-                Duration = new Duration(TimeSpan.FromMilliseconds(200))
-            };
-            DetailColumn.BeginAnimation(ColumnDefinition.WidthProperty, anim);
-        }
-
-        private void CloseDetailPanel()
-        {
-            if (!_detailOpen) return;
-            _detailOpen = false;
-
-            var anim = new GridLengthAnimation
-            {
-                From = new GridLength(320),
-                To = new GridLength(0),
-                Duration = new Duration(TimeSpan.FromMilliseconds(200))
-            };
-            anim.Completed += (s, e) => DetailPanel.Visibility = Visibility.Collapsed;
-            DetailColumn.BeginAnimation(ColumnDefinition.WidthProperty, anim);
+                GameSelected?.Invoke(this, tile.Game);
         }
 
         public void SetViewMode(bool isGrid)
@@ -303,32 +285,13 @@ namespace Vault.Views
                             g.Platform.ToLower().Contains(query) ||
                             (g.Genre != null && g.Genre.ToLower().Contains(query)))
                 .ToList();
+
             if (TxtGameCount != null)
                 TxtGameCount.Text = $"{list.Count} games";
+
             _tiles = new ObservableCollection<GameTileViewModel>(
                 list.Select(g => new GameTileViewModel(g)));
             GamesItemsControl.ItemsSource = _tiles;
-        }
-    }
-
-    public class GridLengthAnimation : System.Windows.Media.Animation.AnimationTimeline
-    {
-        public GridLength From { get; set; }
-        public GridLength To { get; set; }
-
-        public override Type TargetPropertyType => typeof(GridLength);
-
-        protected override System.Windows.Freezable CreateInstanceCore()
-            => new GridLengthAnimation();
-
-        public override object GetCurrentValue(object defaultOriginValue,
-            object defaultDestinationValue,
-            System.Windows.Media.Animation.AnimationClock animationClock)
-        {
-            double progress = animationClock.CurrentProgress ?? 0;
-            double fromVal = From.Value;
-            double toVal = To.Value;
-            return new GridLength(fromVal + (toVal - fromVal) * progress);
         }
     }
 
@@ -337,7 +300,8 @@ namespace Vault.Views
         private readonly Action<T?> _execute;
         public RelayCommand(Action<T?> execute) => _execute = execute;
         public bool CanExecute(object? parameter) => true;
-        public void Execute(object? parameter) => _execute(parameter is T t ? t : default);
+        public void Execute(object? parameter) =>
+            _execute(parameter is T t ? t : default);
         public event EventHandler? CanExecuteChanged;
     }
 }

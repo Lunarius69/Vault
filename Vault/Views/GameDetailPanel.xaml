@@ -1,7 +1,7 @@
-﻿<UserControl x:Class="Vault.Views.GameDetailPanel"
+﻿<UserControl x:Class="Vault.Views.GameDetailPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Background="#16213e" Width="320">
+             Background="#1a1a2e">
 
     <UserControl.Resources>
         <Style x:Key="DetailLabel" TargetType="TextBlock">
@@ -9,27 +9,26 @@
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Margin" Value="0,0,0,2"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
         </Style>
         <Style x:Key="DetailValue" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#ffffff"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
         <Style x:Key="ActionBtn" TargetType="Button">
-            <Setter Property="Height" Value="40"/>
+            <Setter Property="Height" Value="44"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="8">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -37,7 +36,7 @@
                                 <Setter Property="Opacity" Value="0.85"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
+                                <Setter Property="Opacity" Value="0.35"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -52,229 +51,261 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header with close button -->
-        <Border Grid.Row="0" BorderBrush="#2d3561" BorderThickness="0,0,0,1" Padding="16,12">
-            <Grid>
-                <TextBlock Text="Game Details" Foreground="#ffffff"
-                           FontSize="14" FontWeight="Bold" FontFamily="Segoe UI"
-                           VerticalAlignment="Center"/>
-                <Button x:Name="BtnClose" Content="✕"
-                        HorizontalAlignment="Right"
-                        Width="28" Height="28"
-                        Background="Transparent"
-                        Foreground="#636e72"
-                        BorderThickness="0"
-                        FontSize="14"
-                        Cursor="Hand"
-                        Click="BtnClose_Click">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" CornerRadius="4">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#2d3561"/>
-                                    <Setter Property="Foreground" Value="#ffffff"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
-            </Grid>
-        </Border>
+        <!-- BANNER SECTION -->
+        <Grid Grid.Row="0" Height="340">
 
-        <!-- Scrollable content -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="16,16,16,24">
+            <!-- Banner image background -->
+            <Border ClipToBounds="True">
+                <Grid>
+                    <Image x:Name="ImgBanner" Stretch="UniformToFill"/>
+                    <!-- Dark gradient overlay so text is readable -->
+                    <Border>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="Transparent" Offset="0"/>
+                                <GradientStop Color="#CC1a1a2e" Offset="0.6"/>
+                                <GradientStop Color="#FF1a1a2e" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                </Grid>
+            </Border>
 
-                <!-- Box art -->
-                <Border CornerRadius="8" ClipToBounds="True"
-                        Height="200" Margin="0,0,0,16">
-                    <Grid>
-                        <Border x:Name="PlaceholderBg" Background="#0f3460"/>
-                        <TextBlock x:Name="TxtPlaceholder"
-                                   Foreground="#b2bec3" FontSize="13"
-                                   FontFamily="Segoe UI" TextWrapping="Wrap"
-                                   TextAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Margin="16"/>
-                        <Image x:Name="ImgBoxArt" Stretch="UniformToFill"
-                               Visibility="Collapsed"/>
-                    </Grid>
-                </Border>
+            <!-- Back button top left -->
+            <Button x:Name="BtnBack" Content="← Back"
+                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                    Margin="20,16,0,0"
+                    Background="#33ffffff" Foreground="#ffffff"
+                    BorderThickness="0" FontSize="13"
+                    FontFamily="Segoe UI" Cursor="Hand"
+                    Padding="14,6"
+                    Click="BtnBack_Click">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#55ffffff"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
 
-                <!-- Title -->
-                <TextBlock x:Name="TxtTitle"
-                           Foreground="#ffffff" FontSize="18"
-                           FontWeight="Bold" FontFamily="Segoe UI"
-                           TextWrapping="Wrap" Margin="0,0,0,4"/>
+            <!-- Title + platform + status overlaid on banner bottom -->
+            <StackPanel VerticalAlignment="Bottom" Margin="32,0,32,24">
 
-                <!-- Platform badge -->
-                <Border x:Name="PlatformBadge" CornerRadius="4"
-                        Padding="8,3" HorizontalAlignment="Left"
-                        Margin="0,0,0,12">
-                    <TextBlock x:Name="TxtPlatform" Foreground="White"
-                               FontSize="11" FontWeight="Bold"
-                               FontFamily="Segoe UI"/>
-                </Border>
-
-                <!-- Status row -->
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                    <Ellipse x:Name="StatusDot" Width="10" Height="10"
-                             VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBlock x:Name="TxtStatus" Foreground="#b2bec3"
-                               FontSize="13" FontFamily="Segoe UI"
-                               VerticalAlignment="Center"/>
+                <!-- Platform badge + status in a row -->
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <Border x:Name="PlatformBadge" CornerRadius="4"
+                            Padding="10,3" Margin="0,0,8,0">
+                        <TextBlock x:Name="TxtPlatform" Foreground="White"
+                                   FontSize="11" FontWeight="Bold"
+                                   FontFamily="Segoe UI"/>
+                    </Border>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse x:Name="StatusDot" Width="8" Height="8"
+                                 VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBlock x:Name="TxtStatus" Foreground="#b2bec3"
+                                   FontSize="12" FontFamily="Segoe UI"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
                 </StackPanel>
 
-                <!-- Info grid -->
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition/>
-                        <RowDefinition/>
-                        <RowDefinition/>
-                    </Grid.RowDefinitions>
+                <!-- Game title -->
+                <TextBlock x:Name="TxtTitle"
+                           Foreground="#ffffff" FontSize="32"
+                           FontWeight="Bold" FontFamily="Segoe UI"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+        </Grid>
 
-                    <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,8,12">
-                        <TextBlock Text="YEAR" Style="{StaticResource DetailLabel}"/>
-                        <TextBlock x:Name="TxtYear" Style="{StaticResource DetailValue}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,0,12">
-                        <TextBlock Text="SIZE" Style="{StaticResource DetailLabel}"/>
-                        <TextBlock x:Name="TxtSize" Style="{StaticResource DetailValue}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="0" Grid.Row="1" Margin="0,0,8,12">
-                        <TextBlock Text="GENRE" Style="{StaticResource DetailLabel}"/>
-                        <TextBlock x:Name="TxtGenre" Style="{StaticResource DetailValue}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Grid.Row="1" Margin="0,0,0,12">
-                        <TextBlock Text="PLAYTIME" Style="{StaticResource DetailLabel}"/>
-                        <TextBlock x:Name="TxtPlaytime" Style="{StaticResource DetailValue}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="0" Grid.Row="2" Margin="0,0,8,12">
-                        <TextBlock Text="LAST PLAYED" Style="{StaticResource DetailLabel}"/>
-                        <TextBlock x:Name="TxtLastPlayed" Style="{StaticResource DetailValue}"/>
-                    </StackPanel>
-                </Grid>
+        <!-- MAIN CONTENT below banner -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <Grid Margin="32,24,32,32">
+                <Grid.ColumnDefinitions>
+                    <!-- Left column: launch + info -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- Right column: HLTB + achievements + description -->
+                    <ColumnDefinition Width="320"/>
+                </Grid.ColumnDefinitions>
 
-                <!-- HLTB times -->
-                <Border Background="#1a1a2e" CornerRadius="8" Padding="12" Margin="0,0,0,16">
-                    <StackPanel>
-                        <TextBlock Text="HOW LONG TO BEAT" Foreground="#636e72"
-                                   FontSize="11" FontWeight="Bold"
-                                   FontFamily="Segoe UI" Margin="0,0,0,8"/>
+                <!-- LEFT COLUMN -->
+                <StackPanel Grid.Column="0" Margin="0,0,24,0">
+
+                    <!-- Launch button — big and prominent -->
+                    <Button x:Name="BtnLaunch"
+                            Style="{StaticResource ActionBtn}"
+                            Background="#e94560" Foreground="White"
+                            Margin="0,0,0,12"
+                            Click="BtnLaunch_Click"/>
+
+                    <!-- Set path + edit status -->
+                    <Grid Margin="0,0,0,24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="📁  Set File Path"
+                                Style="{StaticResource ActionBtn}"
+                                Background="#2d3561" Foreground="White"
+                                Click="BtnSetPath_Click"/>
+                        <Button Grid.Column="2" Content="✏  Edit Status"
+                                Style="{StaticResource ActionBtn}"
+                                Background="#2d3561" Foreground="White"
+                                Click="BtnEditStatus_Click"/>
+                    </Grid>
+
+                    <!-- Status message -->
+                    <TextBlock x:Name="TxtMessage" Foreground="#00b894"
+                               FontSize="12" FontFamily="Segoe UI"
+                               TextWrapping="Wrap" Margin="0,0,0,16"
+                               Visibility="Collapsed"/>
+
+                    <!-- Info grid: 2x3 -->
+                    <Border Background="#16213e" CornerRadius="12"
+                            Padding="20" Margin="0,0,0,16">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                                <TextBlock x:Name="TxtHltbMain" Text="—"
-                                           Foreground="#ffffff" FontSize="16"
-                                           FontWeight="Bold" FontFamily="Segoe UI"
-                                           HorizontalAlignment="Center"/>
-                                <TextBlock Text="Main" Foreground="#636e72"
-                                           FontSize="10" FontFamily="Segoe UI"
-                                           HorizontalAlignment="Center"/>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,0,16">
+                                <TextBlock Text="RELEASE DATE" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtYear" Style="{StaticResource DetailValue}"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                <TextBlock x:Name="TxtHltbSides" Text="—"
-                                           Foreground="#ffffff" FontSize="16"
-                                           FontWeight="Bold" FontFamily="Segoe UI"
-                                           HorizontalAlignment="Center"/>
-                                <TextBlock Text="Main+Sides" Foreground="#636e72"
-                                           FontSize="10" FontFamily="Segoe UI"
-                                           HorizontalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,0,16">
+                                <TextBlock Text="GENRE" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtGenre" Style="{StaticResource DetailValue}"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="2" HorizontalAlignment="Center">
-                                <TextBlock x:Name="TxtHltbComplete" Text="—"
-                                           Foreground="#ffffff" FontSize="16"
-                                           FontWeight="Bold" FontFamily="Segoe UI"
-                                           HorizontalAlignment="Center"/>
-                                <TextBlock Text="100%" Foreground="#636e72"
-                                           FontSize="10" FontFamily="Segoe UI"
-                                           HorizontalAlignment="Center"/>
+                            <StackPanel Grid.Column="2" Grid.Row="0" Margin="0,0,0,16">
+                                <TextBlock Text="FILE SIZE" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtSize" Style="{StaticResource DetailValue}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="0" Grid.Row="1">
+                                <TextBlock Text="PLAYTIME" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtPlaytime" Style="{StaticResource DetailValue}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Grid.Row="1">
+                                <TextBlock Text="LAST PLAYED" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtLastPlayed" Style="{StaticResource DetailValue}"/>
                             </StackPanel>
                         </Grid>
-                    </StackPanel>
-                </Border>
+                    </Border>
 
-                <!-- Achievements -->
-                <Border x:Name="AchievementsPanel" Background="#1a1a2e"
-                        CornerRadius="8" Padding="12" Margin="0,0,0,16">
-                    <StackPanel>
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="ACHIEVEMENTS" Foreground="#636e72"
-                                       FontSize="11" FontWeight="Bold"
-                                       FontFamily="Segoe UI"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TxtAchievementSource"
-                                       Grid.Column="1"
-                                       Text="RetroAchievements"
-                                       Foreground="#2d3561" FontSize="10"
-                                       FontFamily="Segoe UI"
-                                       VerticalAlignment="Center"/>
+                    <!-- Description -->
+                    <Border Background="#16213e" CornerRadius="12" Padding="20">
+                        <StackPanel>
+                            <TextBlock Text="DESCRIPTION" Style="{StaticResource DetailLabel}"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock x:Name="TxtDescription"
+                                       Foreground="#b2bec3" FontSize="13"
+                                       FontFamily="Segoe UI" TextWrapping="Wrap"
+                                       LineHeight="20"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- RIGHT COLUMN -->
+                <StackPanel Grid.Column="1">
+
+                    <!-- Box art -->
+                    <Border CornerRadius="10" ClipToBounds="True"
+                            Height="220" Margin="0,0,0,16">
+                        <Grid>
+                            <Border x:Name="PlaceholderBg" Background="#0f3460"/>
+                            <TextBlock x:Name="TxtPlaceholder"
+                                       Foreground="#b2bec3" FontSize="13"
+                                       FontFamily="Segoe UI" TextWrapping="Wrap"
+                                       TextAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Margin="16"/>
+                            <Image x:Name="ImgBoxArt" Stretch="UniformToFill"
+                                   Visibility="Collapsed"/>
                         </Grid>
+                    </Border>
 
-                        <!-- Earned / Total count -->
-                        <TextBlock x:Name="TxtAchievements"
-                                   Foreground="#ffffff" FontSize="20"
-                                   FontWeight="Bold" FontFamily="Segoe UI"
-                                   Margin="0,0,0,6"/>
+                    <!-- HLTB -->
+                    <Border Background="#16213e" CornerRadius="12"
+                            Padding="20" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="HOW LONG TO BEAT"
+                                       Style="{StaticResource DetailLabel}"
+                                       Margin="0,0,0,12"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                                    <TextBlock x:Name="TxtHltbMain" Text="—"
+                                               Foreground="#ffffff" FontSize="18"
+                                               FontWeight="Bold" FontFamily="Segoe UI"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Main" Foreground="#636e72"
+                                               FontSize="10" FontFamily="Segoe UI"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                    <TextBlock x:Name="TxtHltbSides" Text="—"
+                                               Foreground="#ffffff" FontSize="18"
+                                               FontWeight="Bold" FontFamily="Segoe UI"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Main+Sides" Foreground="#636e72"
+                                               FontSize="10" FontFamily="Segoe UI"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                                    <TextBlock x:Name="TxtHltbComplete" Text="—"
+                                               Foreground="#ffffff" FontSize="18"
+                                               FontWeight="Bold" FontFamily="Segoe UI"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="100%" Foreground="#636e72"
+                                               FontSize="10" FontFamily="Segoe UI"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
 
-                        <!-- Progress bar -->
-                        <Grid Margin="0,0,0,4">
-                            <Border Background="#2d3561" CornerRadius="3" Height="6"/>
-                            <Border x:Name="AchievementBarFill" Background="#e94560"
-                                    CornerRadius="3" Height="6"
-                                    HorizontalAlignment="Left" Width="0"/>
-                        </Grid>
+                    <!-- Achievements -->
+                    <Border x:Name="AchievementsPanel" Background="#16213e"
+                            CornerRadius="12" Padding="20">
+                        <StackPanel>
+                            <TextBlock Text="ACHIEVEMENTS"
+                                       Style="{StaticResource DetailLabel}"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock x:Name="TxtAchievements"
+                                       Foreground="#ffffff" FontSize="22"
+                                       FontWeight="Bold" FontFamily="Segoe UI"
+                                       Margin="0,0,0,8"/>
+                            <!-- Progress bar -->
+                            <Grid Height="8" Margin="0,0,0,6">
+                                <Border Background="#2d3561" CornerRadius="4"/>
+                                <Border x:Name="AchievementBarFill"
+                                        Background="#e94560" CornerRadius="4"
+                                        HorizontalAlignment="Left" Width="0"/>
+                            </Grid>
+                            <TextBlock x:Name="TxtAchievementPct"
+                                       Foreground="#636e72" FontSize="11"
+                                       FontFamily="Segoe UI"/>
+                        </StackPanel>
+                    </Border>
 
-                        <!-- Percentage label -->
-                        <TextBlock x:Name="TxtAchievementPct"
-                                   Foreground="#636e72" FontSize="10"
-                                   FontFamily="Segoe UI"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Description -->
-                <TextBlock Text="DESCRIPTION" Style="{StaticResource DetailLabel}"/>
-                <TextBlock x:Name="TxtDescription" Style="{StaticResource DetailValue}"
-                           Foreground="#b2bec3" FontSize="12" Margin="0,0,0,16"/>
-
-                <!-- Action buttons -->
-                <Button x:Name="BtnLaunch" Content="▶  Launch Game"
-                        Style="{StaticResource ActionBtn}"
-                        Background="#e94560" Foreground="White"
-                        Click="BtnLaunch_Click"/>
-
-                <Button x:Name="BtnSetPath" Content="📁  Set File Path"
-                        Style="{StaticResource ActionBtn}"
-                        Background="#2d3561" Foreground="White"
-                        Click="BtnSetPath_Click"/>
-
-                <Button x:Name="BtnEditStatus" Content="✏  Edit Status"
-                        Style="{StaticResource ActionBtn}"
-                        Background="#2d3561" Foreground="White"
-                        Click="BtnEditStatus_Click"/>
-
-                <!-- Status message -->
-                <TextBlock x:Name="TxtMessage" Foreground="#00b894"
-                           FontSize="11" FontFamily="Segoe UI"
-                           TextWrapping="Wrap" Visibility="Collapsed"/>
-
-            </StackPanel>
+                </StackPanel>
+            </Grid>
         </ScrollViewer>
     </Grid>
 </UserControl>

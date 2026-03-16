@@ -30,6 +30,7 @@ namespace Vault
                 case "Games":
                     BtnGames.Style = (Style)FindResource("SidebarButtonActive");
                     _gamesPage = new GamesPage(_settings);
+                    _gamesPage.GameSelected += OnGameSelected;
                     MainContent.Content = _gamesPage;
                     break;
                 case "Shows":
@@ -52,6 +53,17 @@ namespace Vault
                     MainContent.Content = new SettingsPage();
                     break;
             }
+        }
+
+        private void OnGameSelected(object? sender, Game game)
+        {
+            var detailPage = new GameDetailPage(game, _settings);
+            detailPage.BackRequested += (s, e) =>
+            {
+                // Restore the games page exactly as it was
+                MainContent.Content = _gamesPage;
+            };
+            MainContent.Content = detailPage;
         }
 
         private void BtnGames_Click(object sender, RoutedEventArgs e) => NavigateTo("Games");
