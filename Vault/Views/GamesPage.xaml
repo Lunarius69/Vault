@@ -43,7 +43,6 @@
             <Setter Property="BorderBrush" Value="#e94560"/>
         </Style>
 
-        <!-- Invisible button overlay style for game tiles -->
         <Style x:Key="TileButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -113,7 +112,8 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ComboBoxItem">
-                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                                    Padding="{TemplateBinding Padding}">
                                                 <ContentPresenter/>
                                             </Border>
                                             <ControlTemplate.Triggers>
@@ -151,7 +151,9 @@
                                                        Foreground="#b2bec3" VerticalAlignment="Center"
                                                        HorizontalAlignment="Center" FontSize="10"/>
                                             <ToggleButton Grid.ColumnSpan="2"
-                                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                                          IsChecked="{Binding IsDropDownOpen,
+                                                          RelativeSource={RelativeSource TemplatedParent},
+                                                          Mode=TwoWay}"
                                                           Focusable="False" Opacity="0">
                                                 <ToggleButton.Template>
                                                     <ControlTemplate TargetType="ToggleButton">
@@ -163,7 +165,8 @@
                                     </Border>
                                     <Popup IsOpen="{TemplateBinding IsDropDownOpen}"
                                            Placement="Bottom" AllowsTransparency="False">
-                                        <Border Background="#0d1117" BorderBrush="#2d3561" BorderThickness="1"
+                                        <Border Background="#0d1117" BorderBrush="#2d3561"
+                                                BorderThickness="1"
                                                 MinWidth="{TemplateBinding ActualWidth}">
                                             <ScrollViewer MaxHeight="200">
                                                 <ItemsPresenter/>
@@ -194,12 +197,11 @@
             </Grid>
         </Border>
 
-        <!-- Main content: sidebar + games + detail panel -->
+        <!-- Main content: sidebar + games -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="180"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition x:Name="DetailColumn" Width="0"/>
             </Grid.ColumnDefinitions>
 
             <!-- Platform sidebar -->
@@ -232,7 +234,6 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <!-- Button wraps the whole tile — this is the reliable WPF click pattern -->
                                 <Button Style="{StaticResource TileButton}"
                                         Click="GameTile_Click"
                                         Width="150" Height="210" Margin="6">
@@ -316,34 +317,36 @@
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListView.View>
                         <GridView>
-                            <GridViewColumn Header="Title" Width="300" DisplayMemberBinding="{Binding Title}"/>
-                            <GridViewColumn Header="Platform" Width="120" DisplayMemberBinding="{Binding Platform}"/>
-                            <GridViewColumn Header="Year" Width="60" DisplayMemberBinding="{Binding Year}"/>
-                            <GridViewColumn Header="Status" Width="100" DisplayMemberBinding="{Binding Status}"/>
-                            <GridViewColumn Header="Playtime" Width="90" DisplayMemberBinding="{Binding PlaytimeDisplay}"/>
-                            <GridViewColumn Header="Size" Width="80" DisplayMemberBinding="{Binding SizeDisplay}"/>
+                            <GridViewColumn Header="Title" Width="300"
+                                            DisplayMemberBinding="{Binding Title}"/>
+                            <GridViewColumn Header="Platform" Width="120"
+                                            DisplayMemberBinding="{Binding Platform}"/>
+                            <GridViewColumn Header="Year" Width="60"
+                                            DisplayMemberBinding="{Binding Year}"/>
+                            <GridViewColumn Header="Status" Width="100"
+                                            DisplayMemberBinding="{Binding Status}"/>
+                            <GridViewColumn Header="Playtime" Width="90"
+                                            DisplayMemberBinding="{Binding PlaytimeDisplay}"/>
+                            <GridViewColumn Header="Size" Width="80"
+                                            DisplayMemberBinding="{Binding SizeDisplay}"/>
                         </GridView>
                     </ListView.View>
                 </ListView>
             </Grid>
-
-            <!-- Detail panel -->
-            <Border Grid.Column="2" BorderBrush="#2d3561" BorderThickness="1,0,0,0">
-                <local:GameDetailPanel x:Name="DetailPanel" Visibility="Collapsed"/>
-            </Border>
         </Grid>
 
-        
+        <!-- Loading overlay -->
         <Border Grid.Row="1" x:Name="LoadingOverlay"
-        Background="#CC1a1a2e" Visibility="Collapsed"
-        IsHitTestVisible="False">
-    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-        <TextBlock Text="Loading your library..." Foreground="#ffffff"
-                   FontSize="18" FontFamily="Segoe UI"
-                   HorizontalAlignment="Center"/>
-        <ProgressBar IsIndeterminate="True" Width="200" Height="4"
-                     Margin="0,16,0,0" Foreground="#e94560" Background="#2d3561"/>
-    </StackPanel>
-</Border>
+                Background="#CC1a1a2e" Visibility="Collapsed"
+                IsHitTestVisible="False">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="Loading your library..." Foreground="#ffffff"
+                           FontSize="18" FontFamily="Segoe UI"
+                           HorizontalAlignment="Center"/>
+                <ProgressBar IsIndeterminate="True" Width="200" Height="4"
+                             Margin="0,16,0,0" Foreground="#e94560"
+                             Background="#2d3561"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>
