@@ -23,5 +23,10 @@ namespace Vault.Models
         public DateTime? LastPlayed { get; set; }
         public bool IsWishlist { get; set; } = false;
         public bool IsDownloaded { get; set; } = false;
+
+        // Achievements
+        public int? AchievementsEarned { get; set; }
+        public int? AchievementsTotal { get; set; }
+        public int? RetroAchievementsGameId { get; set; }
     }
 }

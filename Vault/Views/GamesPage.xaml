@@ -335,14 +335,15 @@
 
         
         <Border Grid.Row="1" x:Name="LoadingOverlay"
-                Background="#CC1a1a2e" Visibility="Collapsed">
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock Text="Loading your library..." Foreground="#ffffff"
-                           FontSize="18" FontFamily="Segoe UI"
-                           HorizontalAlignment="Center"/>
-                <ProgressBar IsIndeterminate="True" Width="200" Height="4"
-                             Margin="0,16,0,0" Foreground="#e94560" Background="#2d3561"/>
-            </StackPanel>
-        </Border>
+        Background="#CC1a1a2e" Visibility="Collapsed"
+        IsHitTestVisible="False">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="Loading your library..." Foreground="#ffffff"
+                   FontSize="18" FontFamily="Segoe UI"
+                   HorizontalAlignment="Center"/>
+        <ProgressBar IsIndeterminate="True" Width="200" Height="4"
+                     Margin="0,16,0,0" Foreground="#e94560" Background="#2d3561"/>
+    </StackPanel>
+</Border>
     </Grid>
 </UserControl>
