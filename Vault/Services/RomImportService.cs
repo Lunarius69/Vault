@@ -87,6 +87,10 @@ namespace Vault.Services
                 filename, @"\((?:USA|Europe|Japan|World|En|Fr|De|Es|It|Nl|Pt|Sv|No|Da|Fi)[^)]*\)",
                 "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
+                filename = System.Text.RegularExpressions.Regex.Replace(
+        filename, @"\(Disc\s*\d+\)", "",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
             // Remove common ROM flags like [!], [T+Eng], [h], [b], etc.
             filename = System.Text.RegularExpressions.Regex.Replace(
                 filename, @"\[[^\]]*\]", "");

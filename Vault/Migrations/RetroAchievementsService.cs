@@ -98,7 +98,7 @@ namespace Vault.Services
                 var p when p.Contains("game boy color") || p.Contains("gbc") => "6",
                 var p when p.Contains("game boy") => "4",
                 var p when p.Contains("ds") => "18",
-                var p when p.Contains("3ds") => "2",
+                var p when p.Contains("3ds") => "4",
                 var p when p.Contains("xbox 360") => "69",
                 var p when p.Contains("dreamcast") => "49",
                 var p when p.Contains("saturn") => "39",

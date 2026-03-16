@@ -267,10 +267,11 @@ namespace Vault.Views
             panel.Children.Add(track);
 
             // Set bar width after layout
-            track.Loaded += (s, e) =>
-            {
-                fill.Width = track.ActualWidth * pct / 100.0;
-            };
+            track.SizeChanged += (s, e) =>
+{
+    if (track.ActualWidth > 0)
+        fill.Width = track.ActualWidth * pct / 100.0;
+};
 
             return panel;
         }
