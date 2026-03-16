@@ -68,31 +68,39 @@
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,16,0,0">
-                    <TextBlock Text="LIBRARY" Foreground="#636e72"
-                               FontSize="10" FontWeight="Bold"
-                               FontFamily="Segoe UI" Margin="28,8,0,4"/>
+    <TextBlock Text="LIBRARY" Foreground="#636e72"
+               FontSize="10" FontWeight="Bold"
+               FontFamily="Segoe UI" Margin="28,8,0,4"/>
 
-                    <Button x:Name="BtnGames" Content="🎮   Games"
-                            Style="{StaticResource SidebarButtonActive}"
-                            Click="BtnGames_Click"/>
-                    <Button x:Name="BtnShows" Content="📺   TV Shows"
-                            Style="{StaticResource SidebarButton}"
-                            Click="BtnShows_Click"/>
-                    <Button x:Name="BtnMovies" Content="🎬   Movies"
-                            Style="{StaticResource SidebarButton}"
-                            Click="BtnMovies_Click"/>
-                    <Button x:Name="BtnAnime" Content="🎌   Anime"
-                            Style="{StaticResource SidebarButton}"
-                            Click="BtnAnime_Click"/>
+    <Button x:Name="BtnGames" Content="🎮   Games"
+            Style="{StaticResource SidebarButtonActive}"
+            Click="BtnGames_Click"/>
+    <Button x:Name="BtnShows" Content="📺   TV Shows"
+            Style="{StaticResource SidebarButton}"
+            Click="BtnShows_Click"/>
+    <Button x:Name="BtnMovies" Content="🎬   Movies"
+            Style="{StaticResource SidebarButton}"
+            Click="BtnMovies_Click"/>
+    <Button x:Name="BtnAnime" Content="🎌   Anime"
+            Style="{StaticResource SidebarButton}"
+            Click="BtnAnime_Click"/>
 
-                    <TextBlock Text="GAMES" Foreground="#636e72"
-                               FontSize="10" FontWeight="Bold"
-                               FontFamily="Segoe UI" Margin="28,16,0,4"/>
+    <TextBlock Text="GAMES" Foreground="#636e72"
+               FontSize="10" FontWeight="Bold"
+               FontFamily="Segoe UI" Margin="28,16,0,4"/>
 
-                    <Button x:Name="BtnWishlist" Content="❤   Wishlist"
-                            Style="{StaticResource SidebarButton}"
-                            Click="BtnWishlist_Click"/>
-                </StackPanel>
+    <Button x:Name="BtnWishlist" Content="❤   Wishlist"
+            Style="{StaticResource SidebarButton}"
+            Click="BtnWishlist_Click"/>
+
+    <TextBlock Text="OTHER" Foreground="#636e72"
+               FontSize="10" FontWeight="Bold"
+               FontFamily="Segoe UI" Margin="28,16,0,4"/>
+
+    <Button x:Name="BtnStats" Content="📊   Statistics"
+            Style="{StaticResource SidebarButton}"
+            Click="BtnStats_Click"/>
+</StackPanel>
 
                 <Button Grid.Row="2" x:Name="BtnSettings"
                         Content="⚙   Settings"

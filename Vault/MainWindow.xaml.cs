@@ -25,6 +25,7 @@ namespace Vault
             BtnMovies.Style = (Style)FindResource("SidebarButton");
             BtnAnime.Style = (Style)FindResource("SidebarButton");
             BtnWishlist.Style = (Style)FindResource("SidebarButton");
+            BtnStats.Style = (Style)FindResource("SidebarButton");
 
             _currentMediaPage = null;
 
@@ -58,6 +59,10 @@ namespace Vault
                     BtnWishlist.Style = (Style)FindResource("SidebarButtonActive");
                     MainContent.Content = new WishlistPage(_settings);
                     break;
+                case "Stats":
+                    BtnStats.Style = (Style)FindResource("SidebarButtonActive");
+                    MainContent.Content = new StatsPage();
+                    break;
                 case "Settings":
                     MainContent.Content = new SettingsPage();
                     break;
@@ -85,6 +90,7 @@ namespace Vault
         private void BtnMovies_Click(object sender, RoutedEventArgs e) => NavigateTo("Movies");
         private void BtnAnime_Click(object sender, RoutedEventArgs e) => NavigateTo("Anime");
         private void BtnWishlist_Click(object sender, RoutedEventArgs e) => NavigateTo("Wishlist");
+        private void BtnStats_Click(object sender, RoutedEventArgs e) => NavigateTo("Stats");
         private void BtnSettings_Click(object sender, RoutedEventArgs e) => NavigateTo("Settings");
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
