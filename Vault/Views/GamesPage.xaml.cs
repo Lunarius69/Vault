@@ -36,30 +36,22 @@ namespace Vault.Views
         }
 
         private async void GamesPage_Loaded(object sender, RoutedEventArgs e)
-        {
-            LoadingOverlay.Visibility = Visibility.Visible;
+{
+    LoadingOverlay.Visibility = Visibility.Visible;
 
-            using var db = new VaultContext();
-            _allGames = await db.Games
-                .Where(g => !g.IsWishlist)
-                .OrderBy(g => g.Title)
-                .ToListAsync();
+    var detector = new AutoDetectService(_settings);
+    await detector.ScanAndUpdateAsync();
 
-            // Auto-detect downloaded games from games folder
-            var detector = new AutoDetectService(_settings);
-            int found = await detector.ScanAndUpdateAsync();
-            if (found > 0)
-            {
-                _allGames = await db.Games
-                    .Where(g => !g.IsWishlist)
-                    .OrderBy(g => g.Title)
-                    .ToListAsync();
-            }
+    using var db = new VaultContext();
+    _allGames = await db.Games
+        .Where(g => !g.IsWishlist)
+        .OrderBy(g => g.Title)
+        .ToListAsync();
 
-            LoadingOverlay.Visibility = Visibility.Collapsed;
-            BuildPlatformList();
-            ApplyFilters();
-        }
+    LoadingOverlay.Visibility = Visibility.Collapsed;
+    BuildPlatformList();
+    ApplyFilters();
+}
 
         private async Task FetchMissingBoxArtAsync(List<GameTileViewModel> tiles)
         {
