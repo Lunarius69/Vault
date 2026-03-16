@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System.IO;
 using Vault.Models;
 
 namespace Vault.Database
@@ -10,21 +9,13 @@ namespace Vault.Database
         public DbSet<MediaItem> MediaItems { get; set; }
         public DbSet<Episode> Episodes { get; set; }
 
-        public static string DbPath
-        {
-            get
-            {
-                string folder = Path.Combine(
-                    System.Environment.GetFolderPath(
-                        System.Environment.SpecialFolder.ApplicationData), "Vault");
-                Directory.CreateDirectory(folder);
-                return Path.Combine(folder, "vault.db");
-            }
-        }
-
         protected override void OnConfiguring(DbContextOptionsBuilder options)
         {
-            options.UseSqlite($"Data Source={DbPath}");
+            string dbPath = System.IO.Path.Combine(
+                System.Environment.GetFolderPath(
+                    System.Environment.SpecialFolder.ApplicationData),
+                "Vault", "vault.db");
+            options.UseSqlite($"Data Source={dbPath}");
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

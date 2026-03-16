@@ -1,0 +1,474 @@
+<UserControl x:Class="Vault.Views.MediaDetailPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1a1a2e">
+
+    <UserControl.Resources>
+        <Style x:Key="DetailLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#636e72"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style x:Key="DetailValue" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="SeasonTab" TargetType="Button">
+            <Setter Property="Background" Value="#16213e"/>
+            <Setter Property="Foreground" Value="#b2bec3"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2d3561"/>
+                                <Setter Property="Foreground" Value="#ffffff"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SeasonTabActive" TargetType="Button"
+               BasedOn="{StaticResource SeasonTab}">
+            <Setter Property="Background" Value="#e94560"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+        </Style>
+        <Style x:Key="ActionBtn" TargetType="Button">
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- BANNER -->
+        <Grid Grid.Row="0" Height="340">
+            <Border ClipToBounds="True">
+                <Grid>
+                    <Image x:Name="ImgBanner" Stretch="UniformToFill"/>
+                    <Border>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="Transparent" Offset="0"/>
+                                <GradientStop Color="#CC1a1a2e" Offset="0.6"/>
+                                <GradientStop Color="#FF1a1a2e" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Back button -->
+            <Button x:Name="BtnBack" Content="← Back"
+                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                    Margin="20,16,0,0"
+                    Background="#33ffffff" Foreground="#ffffff"
+                    BorderThickness="0" FontSize="13"
+                    FontFamily="Segoe UI" Cursor="Hand" Padding="14,6"
+                    Click="BtnBack_Click">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#55ffffff"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+
+            <!-- Title + meta overlaid on banner -->
+            <StackPanel VerticalAlignment="Bottom" Margin="32,0,32,24">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <Border x:Name="TypeBadge" CornerRadius="4"
+                            Padding="10,3" Margin="0,0,8,0"
+                            Background="#e94560">
+                        <TextBlock x:Name="TxtMediaType" Foreground="White"
+                                   FontSize="11" FontWeight="Bold"
+                                   FontFamily="Segoe UI"/>
+                    </Border>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse x:Name="StatusDot" Width="8" Height="8"
+                                 VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBlock x:Name="TxtStatus" Foreground="#b2bec3"
+                                   FontSize="12" FontFamily="Segoe UI"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock x:Name="TxtTitle" Foreground="#ffffff"
+                           FontSize="32" FontWeight="Bold"
+                           FontFamily="Segoe UI" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- MAIN CONTENT -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <Grid Margin="32,24,32,32">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="300"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- LEFT COLUMN -->
+                <StackPanel Grid.Column="0" Margin="0,0,24,0">
+
+                    <!-- Continue watching / Play button -->
+                    <Button x:Name="BtnPlay"
+                            Style="{StaticResource ActionBtn}"
+                            Background="#e94560" Foreground="White"
+                            Margin="0,0,0,12"
+                            Click="BtnPlay_Click"/>
+
+                    <!-- Set folder path button -->
+                    <Button x:Name="BtnSetFolder"
+                            Content="📁  Set Media Folder"
+                            Style="{StaticResource ActionBtn}"
+                            Background="#2d3561" Foreground="White"
+                            Margin="0,0,0,6"
+                            Click="BtnSetFolder_Click"/>
+
+                    <!-- Edit status button -->
+                    <Button x:Name="BtnEditStatus"
+                            Content="✏  Edit Status"
+                            Style="{StaticResource ActionBtn}"
+                            Background="#2d3561" Foreground="White"
+                            Margin="0,0,0,24"
+                            Click="BtnEditStatus_Click"/>
+
+                    <!-- Status message -->
+                    <TextBlock x:Name="TxtMessage" Foreground="#00b894"
+                               FontSize="12" FontFamily="Segoe UI"
+                               TextWrapping="Wrap" Margin="0,0,0,16"
+                               Visibility="Collapsed"/>
+
+                    <!-- Info grid -->
+                    <Border Background="#16213e" CornerRadius="12"
+                            Padding="20" Margin="0,0,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,0,16">
+                                <TextBlock Text="YEAR" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtYear" Style="{StaticResource DetailValue}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,0,16">
+                                <TextBlock Text="GENRE" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtGenre" Style="{StaticResource DetailValue}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Grid.Row="0" Margin="0,0,0,16">
+                                <TextBlock Text="RATING" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtRating" Style="{StaticResource DetailValue}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="0" Grid.Row="1">
+                                <TextBlock Text="SEASONS" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtSeasons" Style="{StaticResource DetailValue}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Grid.Row="1">
+                                <TextBlock Text="EPISODES" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtEpisodes" Style="{StaticResource DetailValue}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Grid.Row="1">
+                                <TextBlock Text="PROGRESS" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtProgress" Style="{StaticResource DetailValue}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Progress bar -->
+                    <Border Background="#16213e" CornerRadius="12"
+                            Padding="20" Margin="0,0,0,16">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="WATCH PROGRESS"
+                                           Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtProgressPct"
+                                           Grid.Column="1"
+                                           Foreground="#636e72" FontSize="11"
+                                           FontFamily="Segoe UI"/>
+                            </Grid>
+                            <Grid Height="8">
+                                <Border Background="#2d3561" CornerRadius="4"/>
+                                <Border x:Name="ProgressBarFill"
+                                        Background="#e94560" CornerRadius="4"
+                                        HorizontalAlignment="Left" Width="0"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Description -->
+                    <Border Background="#16213e" CornerRadius="12"
+                            Padding="20" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="DESCRIPTION"
+                                       Style="{StaticResource DetailLabel}"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock x:Name="TxtDescription"
+                                       Foreground="#b2bec3" FontSize="13"
+                                       FontFamily="Segoe UI"
+                                       TextWrapping="Wrap" LineHeight="20"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Season tabs + episode grid (hidden for movies) -->
+                    <Border x:Name="EpisodesSection" Background="#16213e"
+                            CornerRadius="12" Padding="20"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <!-- Season tabs -->
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          Margin="0,0,0,16">
+                                <StackPanel x:Name="SeasonTabsPanel"
+                                            Orientation="Horizontal"/>
+                            </ScrollViewer>
+
+                            <!-- Loading indicator for episodes -->
+                            <TextBlock x:Name="TxtEpisodesLoading"
+                                       Text="Loading episodes..."
+                                       Foreground="#636e72" FontSize="12"
+                                       FontFamily="Segoe UI"
+                                       Visibility="Collapsed"
+                                       Margin="0,0,0,8"/>
+
+                            <!-- Episodes grid -->
+                            <ItemsControl x:Name="EpisodesItemsControl">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <!-- Episode card -->
+                                        <Button Width="160" Height="130"
+                                                Margin="0,0,8,8"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Cursor="Hand"
+                                                Tag="{Binding}"
+                                                Click="EpisodeCard_Click">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="CardBorder"
+                                                            Background="#1a1a2e"
+                                                            CornerRadius="8"
+                                                            ClipToBounds="True">
+                                                        <Grid>
+                                                            <!-- Thumbnail -->
+                                                            <Image Source="{Binding ThumbnailPath}"
+                                                                   Stretch="UniformToFill"
+                                                                   Height="90"
+                                                                   VerticalAlignment="Top"/>
+
+                                                            <!-- Placeholder thumbnail -->
+                                                            <Border Height="90"
+                                                                    VerticalAlignment="Top"
+                                                                    Background="#0f3460">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger
+                                                                                Binding="{Binding HasThumbnail}"
+                                                                                Value="False">
+                                                                                <Setter Property="Visibility"
+                                                                                        Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <TextBlock
+                                                                    Text="{Binding EpisodeLabel}"
+                                                                    Foreground="#636e72"
+                                                                    FontSize="11"
+                                                                    FontFamily="Segoe UI"
+                                                                    HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center"/>
+                                                            </Border>
+
+                                                            <!-- Watched overlay -->
+                                                            <Border Height="90"
+                                                                    VerticalAlignment="Top"
+                                                                    Background="#88000000">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger
+                                                                                Binding="{Binding IsWatched}"
+                                                                                Value="True">
+                                                                                <Setter Property="Visibility"
+                                                                                        Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <TextBlock Text="✓"
+                                                                           Foreground="#00b894"
+                                                                           FontSize="24"
+                                                                           HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center"/>
+                                                            </Border>
+
+                                                            <!-- Resume progress bar -->
+                                                            <Border x:Name="ResumeBar"
+                                                                    Height="3"
+                                                                    VerticalAlignment="Top"
+                                                                    Margin="0,87,0,0"
+                                                                    HorizontalAlignment="Left"
+                                                                    Background="#e94560"
+                                                                    Width="{Binding ResumeBarWidth}"/>
+
+                                                            <!-- Episode title -->
+                                                            <StackPanel
+                                                                VerticalAlignment="Bottom"
+                                                                Margin="8,0,8,6"
+                                                                Height="40">
+                                                                <TextBlock
+                                                                    Text="{Binding EpisodeLabel}"
+                                                                    Foreground="#636e72"
+                                                                    FontSize="10"
+                                                                    FontFamily="Segoe UI"/>
+                                                                <TextBlock
+                                                                    Text="{Binding Title}"
+                                                                    Foreground="#ffffff"
+                                                                    FontSize="11"
+                                                                    FontFamily="Segoe UI"
+                                                                    TextTrimming="CharacterEllipsis"/>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver"
+                                                                 Value="True">
+                                                            <Setter TargetName="CardBorder"
+                                                                    Property="Background"
+                                                                    Value="#2d3561"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- RIGHT COLUMN -->
+                <StackPanel Grid.Column="1">
+
+                    <!-- Poster -->
+                    <Border CornerRadius="10" ClipToBounds="True"
+                            Height="240" Margin="0,0,0,16">
+                        <Grid>
+                            <Border x:Name="PlaceholderBg" Background="#0f3460"/>
+                            <TextBlock x:Name="TxtPlaceholder"
+                                       Foreground="#b2bec3" FontSize="13"
+                                       FontFamily="Segoe UI" TextWrapping="Wrap"
+                                       TextAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Margin="16"/>
+                            <Image x:Name="ImgPoster" Stretch="UniformToFill"
+                                   Visibility="Collapsed"/>
+
+                            <!-- Netflix progress bar on poster -->
+                            <Grid VerticalAlignment="Bottom" Height="4">
+                                <Border Background="#2d3561"/>
+                                <Border x:Name="PosterProgressBar"
+                                        Background="#e94560"
+                                        HorizontalAlignment="Left" Width="0"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- Next episode to watch -->
+                    <Border x:Name="NextEpisodePanel" Background="#16213e"
+                            CornerRadius="12" Padding="16"
+                            Margin="0,0,0,16" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="NEXT UP"
+                                       Style="{StaticResource DetailLabel}"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock x:Name="TxtNextEpisode"
+                                       Foreground="#ffffff" FontSize="13"
+                                       FontFamily="Segoe UI"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock x:Name="TxtNextEpisodeDesc"
+                                       Foreground="#b2bec3" FontSize="11"
+                                       FontFamily="Segoe UI"
+                                       TextWrapping="Wrap" Margin="0,4,0,0"
+                                       MaxHeight="60" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
