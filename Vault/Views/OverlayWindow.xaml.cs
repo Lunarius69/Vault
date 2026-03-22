@@ -1,32 +1,64 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using Vault.Models;
 
 namespace Vault.Views
 {
     public partial class OverlayWindow : Window
     {
-        // Events fired back to PlayerWindow
+        // ------------------------------------------------------------------ //
+        //  Win32
+        // ------------------------------------------------------------------ //
+        private const int GWL_EXSTYLE = -20;
+        private const int WS_EX_TRANSPARENT = 0x00000020;
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr hwnd, int index);
+        [DllImport("user32.dll")]
+        private static extern int SetWindowLong(IntPtr hwnd, int index, int newStyle);
+
+        // ------------------------------------------------------------------ //
+        //  Events fired back to PlayerWindow
+        // ------------------------------------------------------------------ //
         public event Action? PlayPauseRequested;
         public event Action<double>? SeekRequested;
         public event Action? SkipBackRequested;
         public event Action? SkipForwardRequested;
         public event Action? SkipIntroRequested;
-        public event Action? NextEpisodeRequested;
+        public event Action? NextEpisodeRequested;      // overlay button near end
+        public event Action? NextEpisodeButtonRequested; // ⏭ button in controls
+        public event Action? PrevEpisodeRequested;      // ⏮ button in controls
         public event Action? CloseRequested;
         public event Action<int>? VolumeChanged;
         public event Action? MouseActivity;
         public event Action? FullscreenRequested;
 
+        // ------------------------------------------------------------------ //
+        //  Fields
+        // ------------------------------------------------------------------ //
         private readonly PlayerWindow _owner;
         private bool _isDragging = false;
 
+        // ------------------------------------------------------------------ //
+        //  Constructor
+        // ------------------------------------------------------------------ //
         public OverlayWindow(PlayerWindow owner)
         {
             InitializeComponent();
             _owner = owner;
             Owner = owner;
+
+            // Ensure the overlay captures mouse input (not click-through)
+            SourceInitialized += (s, e) =>
+            {
+                var hwnd = new WindowInteropHelper(this).Handle;
+                int style = GetWindowLong(hwnd, GWL_EXSTYLE);
+                style &= ~WS_EX_TRANSPARENT;
+                SetWindowLong(hwnd, GWL_EXSTYLE, style);
+            };
         }
 
         // ------------------------------------------------------------------ //
@@ -39,8 +71,7 @@ namespace Vault.Views
             if (!_isDragging && maxW > 0)
             {
                 ProgressFill.Width = maxW * pct;
-                double left = maxW * pct - 7;
-                SeekThumb.Margin = new Thickness(Math.Max(0, left), 0, 0, 0);
+                SeekThumb.Margin = new Thickness(Math.Max(0, maxW * pct - 7), 0, 0, 0);
             }
             TxtTime.Text = $"{pos:h\\:mm\\:ss} / {len:h\\:mm\\:ss}";
             BtnPlayPause.Content = isPlaying ? "⏸" : "▶";
@@ -92,12 +123,10 @@ namespace Vault.Views
             => BtnNextEpisode.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
         public void ChangeVolume(int delta)
-        {
-            VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + delta, 0, 100);
-        }
+            => VolumeSlider.Value = Math.Clamp(VolumeSlider.Value + delta, 0, 100);
 
         // ------------------------------------------------------------------ //
-        //  Input handlers
+        //  Mouse / keyboard input
         // ------------------------------------------------------------------ //
 
         private void Window_MouseMove(object sender, MouseEventArgs e)
@@ -113,7 +142,10 @@ namespace Vault.Views
         private void Window_KeyDown(object sender, KeyEventArgs e)
             => _owner.HandleKey(e.Key);
 
-        // Seek bar
+        // ------------------------------------------------------------------ //
+        //  Seek bar
+        // ------------------------------------------------------------------ //
+
         private void SeekBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
@@ -145,14 +177,36 @@ namespace Vault.Views
             SeekRequested?.Invoke(pct);
         }
 
-        // Buttons
-        private void BtnPlayPause_Click(object sender, RoutedEventArgs e) => PlayPauseRequested?.Invoke();
-        private void BtnSkipBack_Click(object sender, RoutedEventArgs e) => SkipBackRequested?.Invoke();
-        private void BtnSkipForward_Click(object sender, RoutedEventArgs e) => SkipForwardRequested?.Invoke();
-        private void BtnClose_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
-        private void BtnFullscreen_Click(object sender, RoutedEventArgs e) => FullscreenRequested?.Invoke();
-        private void BtnSkipIntro_Click(object sender, MouseButtonEventArgs e) => SkipIntroRequested?.Invoke();
-        private void BtnNextEpisode_Click(object sender, MouseButtonEventArgs e) => NextEpisodeRequested?.Invoke();
+        // ------------------------------------------------------------------ //
+        //  Button handlers
+        // ------------------------------------------------------------------ //
+
+        private void BtnPlayPause_Click(object sender, RoutedEventArgs e)
+            => PlayPauseRequested?.Invoke();
+
+        private void BtnSkipBack_Click(object sender, RoutedEventArgs e)
+            => SkipBackRequested?.Invoke();
+
+        private void BtnSkipForward_Click(object sender, RoutedEventArgs e)
+            => SkipForwardRequested?.Invoke();
+
+        private void BtnPrevEpisode_Click(object sender, RoutedEventArgs e)
+            => PrevEpisodeRequested?.Invoke();
+
+        private void BtnNextEpisodeBtn_Click(object sender, RoutedEventArgs e)
+            => NextEpisodeButtonRequested?.Invoke();
+
+        private void BtnClose_Click(object sender, RoutedEventArgs e)
+            => CloseRequested?.Invoke();
+
+        private void BtnFullscreen_Click(object sender, RoutedEventArgs e)
+            => FullscreenRequested?.Invoke();
+
+        private void BtnSkipIntro_Click(object sender, MouseButtonEventArgs e)
+            => SkipIntroRequested?.Invoke();
+
+        private void BtnNextEpisode_Click(object sender, MouseButtonEventArgs e)
+            => NextEpisodeRequested?.Invoke();
 
         private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
             => VolumeChanged?.Invoke((int)e.NewValue);
