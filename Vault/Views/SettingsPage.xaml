@@ -44,7 +44,8 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}" CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -69,7 +70,8 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}" CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -85,9 +87,9 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="40,24,40,40">
 
-            <!-- Title -->
             <TextBlock Text="Settings" Foreground="#ffffff"
-                       FontSize="26" FontWeight="Bold" FontFamily="Segoe UI" Margin="0,0,0,4"/>
+                       FontSize="26" FontWeight="Bold"
+                       FontFamily="Segoe UI" Margin="0,0,0,4"/>
             <TextBlock Text="Configure your library paths and API keys"
                        Foreground="#636e72" FontSize="13" FontFamily="Segoe UI"/>
 
@@ -99,37 +101,44 @@
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                 <TextBlock Text="Games Folder" Style="{StaticResource SettingsLabel}"/>
                 <TextBox x:Name="TxtGamesFolder" Style="{StaticResource SettingsTextBox}"/>
-                <Button Content="Browse" Style="{StaticResource BrowseButton}" Click="BrowseGames_Click"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseGames_Click"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                 <TextBlock Text="Emulators Folder" Style="{StaticResource SettingsLabel}"/>
                 <TextBox x:Name="TxtEmulatorsFolder" Style="{StaticResource SettingsTextBox}"/>
-                <Button Content="Browse" Style="{StaticResource BrowseButton}" Click="BrowseEmulators_Click"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseEmulators_Click"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                 <TextBlock Text="Movies Folder" Style="{StaticResource SettingsLabel}"/>
                 <TextBox x:Name="TxtMoviesFolder" Style="{StaticResource SettingsTextBox}"/>
-                <Button Content="Browse" Style="{StaticResource BrowseButton}" Click="BrowseMovies_Click"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseMovies_Click"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                 <TextBlock Text="TV Shows Folder" Style="{StaticResource SettingsLabel}"/>
                 <TextBox x:Name="TxtShowsFolder" Style="{StaticResource SettingsTextBox}"/>
-                <Button Content="Browse" Style="{StaticResource BrowseButton}" Click="BrowseShows_Click"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseShows_Click"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                 <TextBlock Text="Anime Folder" Style="{StaticResource SettingsLabel}"/>
                 <TextBox x:Name="TxtAnimeFolder" Style="{StaticResource SettingsTextBox}"/>
-                <Button Content="Browse" Style="{StaticResource BrowseButton}" Click="BrowseAnime_Click"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseAnime_Click"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                <TextBlock Text="Data Folder (DB + Cache)" Style="{StaticResource SettingsLabel}"/>
+                <TextBlock Text="Data Folder (DB + Cache)"
+                           Style="{StaticResource SettingsLabel}"/>
                 <TextBox x:Name="TxtDataFolder" Style="{StaticResource SettingsTextBox}"/>
-                <Button Content="Browse" Style="{StaticResource BrowseButton}" Click="BrowseData_Click"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseData_Click"/>
             </StackPanel>
 
             <Border Height="1" Background="#2d3561" Margin="0,8,0,0"/>
@@ -141,7 +150,8 @@
                 <TextBlock Style="{StaticResource SettingsLabel}">
                     <Run Text="SteamGridDB API Key"/>
                     <LineBreak/>
-                    <Run Text="steamgriddb.com/api/v2" Foreground="#636e72" FontSize="10"/>
+                    <Run Text="steamgriddb.com/api/v2"
+                         Foreground="#636e72" FontSize="10"/>
                 </TextBlock>
                 <TextBox x:Name="TxtSteamGridKey" Style="{StaticResource SettingsTextBox}"/>
             </StackPanel>
@@ -150,7 +160,8 @@
                 <TextBlock Style="{StaticResource SettingsLabel}">
                     <Run Text="TMDB API Key"/>
                     <LineBreak/>
-                    <Run Text="themoviedb.org/settings/api" Foreground="#636e72" FontSize="10"/>
+                    <Run Text="themoviedb.org/settings/api"
+                         Foreground="#636e72" FontSize="10"/>
                 </TextBlock>
                 <TextBox x:Name="TxtTmdbKey" Style="{StaticResource SettingsTextBox}"/>
             </StackPanel>
@@ -159,7 +170,8 @@
                 <TextBlock Style="{StaticResource SettingsLabel}">
                     <Run Text="Steam API Key (optional)"/>
                     <LineBreak/>
-                    <Run Text="steamcommunity.com/dev/apikey" Foreground="#636e72" FontSize="10"/>
+                    <Run Text="steamcommunity.com/dev/apikey"
+                         Foreground="#636e72" FontSize="10"/>
                 </TextBlock>
                 <TextBox x:Name="TxtSteamKey" Style="{StaticResource SettingsTextBox}"/>
             </StackPanel>
@@ -168,9 +180,28 @@
                 <TextBlock Style="{StaticResource SettingsLabel}">
                     <Run Text="Steam User ID (optional)"/>
                     <LineBreak/>
-                    <Run Text="Your 64-bit Steam ID" Foreground="#636e72" FontSize="10"/>
+                    <Run Text="Your 64-bit Steam ID"
+                         Foreground="#636e72" FontSize="10"/>
                 </TextBlock>
                 <TextBox x:Name="TxtSteamId" Style="{StaticResource SettingsTextBox}"/>
+            </StackPanel>
+
+            <Border Height="1" Background="#2d3561" Margin="0,8,0,0"/>
+
+            <!-- DATABASES -->
+            <TextBlock Text="DATABASES" Style="{StaticResource SectionHeader}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Style="{StaticResource SettingsLabel}">
+                    <Run Text="OpenVGDB Database"/>
+                    <LineBreak/>
+                    <Run Text="github.com/OpenVGDB/OpenVGDB/releases"
+                         Foreground="#636e72" FontSize="10"/>
+                </TextBlock>
+                <TextBox x:Name="TxtOpenVGDB" Style="{StaticResource SettingsTextBox}"
+                         IsReadOnly="True"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseOpenVGDB_Click"/>
             </StackPanel>
 
             <Border Height="1" Background="#2d3561" Margin="0,8,0,0"/>
@@ -182,35 +213,43 @@
                 <TextBlock Style="{StaticResource SettingsLabel}">
                     <Run Text="Games Excel File"/>
                     <LineBreak/>
-                    <Run Text="Your games_library.xlsx" Foreground="#636e72" FontSize="10"/>
+                    <Run Text="Your games_library.xlsx"
+                         Foreground="#636e72" FontSize="10"/>
                 </TextBlock>
                 <TextBox x:Name="TxtGamesExcel" Style="{StaticResource SettingsTextBox}"/>
-                <Button Content="Browse" Style="{StaticResource BrowseButton}" Click="BrowseGamesExcel_Click"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseGamesExcel_Click"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                 <TextBlock Style="{StaticResource SettingsLabel}">
                     <Run Text="Media Excel File"/>
                     <LineBreak/>
-                    <Run Text="Your media_library.xlsx" Foreground="#636e72" FontSize="10"/>
+                    <Run Text="Your media_library.xlsx"
+                         Foreground="#636e72" FontSize="10"/>
                 </TextBlock>
                 <TextBox x:Name="TxtMediaExcel" Style="{StaticResource SettingsTextBox}"/>
-                <Button Content="Browse" Style="{StaticResource BrowseButton}" Click="BrowseMediaExcel_Click"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseMediaExcel_Click"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="200,0,0,0">
-                <Button Content="Import Games" Style="{StaticResource ActionButton}" Click="ImportGames_Click"/>
-                <Button Content="Import Media" Style="{StaticResource ActionButton}" Margin="12,0,0,0" Click="ImportMedia_Click"/>
+                <Button Content="Import Games" Style="{StaticResource ActionButton}"
+                        Click="ImportGames_Click"/>
+                <Button Content="Import Media" Style="{StaticResource ActionButton}"
+                        Margin="12,0,0,0" Click="ImportMedia_Click"/>
             </StackPanel>
 
             <TextBlock x:Name="TxtImportStatus" Foreground="#00b894" FontSize="12"
-                       FontFamily="Segoe UI" Margin="200,8,0,0" Visibility="Collapsed"/>
+                       FontFamily="Segoe UI" Margin="200,8,0,0"
+                       Visibility="Collapsed"/>
 
             <Border Height="1" Background="#2d3561" Margin="0,16,0,0"/>
 
             <!-- SAVE -->
             <StackPanel Orientation="Horizontal" Margin="0,24,0,0">
-                <Button Content="Save Settings" Style="{StaticResource ActionButton}" Click="SaveSettings_Click"/>
+                <Button Content="Save Settings" Style="{StaticResource ActionButton}"
+                        Click="SaveSettings_Click"/>
                 <TextBlock x:Name="TxtSaveStatus" Foreground="#00b894" FontSize="12"
                            FontFamily="Segoe UI" VerticalAlignment="Center"
                            Margin="16,0,0,0" Visibility="Collapsed"/>

@@ -15,6 +15,7 @@ namespace Vault.Models
         public string TmdbApiKey { get; set; } = "";
         public string SteamApiKey { get; set; } = "";
         public string SteamUserId { get; set; } = "";
+        public string? OpenVGDBPath { get; set; }
         public string RetroAchievementsUser { get; set; } = "";
         public string RetroAchievementsApiKey { get; set; } = "";
         public string GamesExcelPath { get; set; } = "";

@@ -3,7 +3,6 @@ using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -142,8 +141,6 @@ namespace Vault.Views
                     ?? _allEpisodes.Select(e => e.SeasonNumber).FirstOrDefault(1);
 
                 BuildSeasonTabs();
-
-                // If multi-series show, show all episodes flat
                 await ShowSeasonAsync(_currentSeason == -1 ? -1 : _currentSeason);
                 UpdateNextEpisodePanel();
                 UpdatePlayButton();
@@ -267,7 +264,7 @@ namespace Vault.Views
                 return;
             }
 
-            int globalEpisodeNumber = 1; // Continuous episode counter across all series
+            int globalEpisodeNumber = 1;
             int globalSeasonOffset = 0;
 
             foreach (int tmdbId in tmdbIds)
@@ -286,7 +283,7 @@ namespace Vault.Views
                         {
                             MediaItemId = _item.Id,
                             SeasonNumber = s + globalSeasonOffset,
-                            EpisodeNumber = globalEpisodeNumber, // Continuous numbering
+                            EpisodeNumber = globalEpisodeNumber,
                             Title = ep.Title,
                             Description = ep.Description,
                             RuntimeMinutes = ep.RuntimeMinutes
@@ -375,7 +372,6 @@ namespace Vault.Views
                 .OrderBy(s => s)
                 .ToList();
 
-            // Multi-series shows show all episodes flat — no season tabs
             bool isMultiSeries = MultiTmdbSearchTerms.ContainsKey(_item.Title);
             if (isMultiSeries)
             {
@@ -419,7 +415,6 @@ namespace Vault.Views
 
             if (season == -1)
             {
-                // Show all episodes flat for merged multi-series shows
                 episodes = _allEpisodes
                     .OrderBy(e => e.SeasonNumber)
                     .ThenBy(e => e.EpisodeNumber)
@@ -443,15 +438,54 @@ namespace Vault.Views
             await Task.CompletedTask;
         }
 
-        private async void EpisodeCard_Click(object sender, RoutedEventArgs e)
+        private void EpisodeCard_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.DataContext is EpisodeViewModel vm)
-                await PlayEpisodeAsync(vm.Episode);
+            {
+                if (string.IsNullOrEmpty(_item.FolderPath))
+                {
+                    ShowMessage("Set the media folder first.", "#e17055");
+                    return;
+                }
+
+                string? filePath = FindEpisodeFile(vm.Episode);
+                if (filePath == null)
+                {
+                    ShowMessage("File not found for this episode.", "#e17055");
+                    return;
+                }
+
+                vm.Episode.FilePath = filePath;
+                OpenPlayer(vm.Episode);
+            }
         }
 
-        private async void BtnPlay_Click(object sender, RoutedEventArgs e)
+        private void BtnPlay_Click(object sender, RoutedEventArgs e)
         {
-            if (_isMovie) { await PlayMovieAsync(); return; }
+            if (_isMovie)
+            {
+                string? movieFile = FindMovieFile();
+                if (string.IsNullOrEmpty(movieFile))
+                {
+                    ShowMessage("File not found. Set the media folder first.", "#e17055");
+                    return;
+                }
+
+                // For movies, create a dummy episode wrapper to reuse PlayerWindow
+                var movieEpisode = new Episode
+                {
+                    Id = -1,
+                    MediaItemId = _item.Id,
+                    SeasonNumber = 1,
+                    EpisodeNumber = 1,
+                    Title = _item.Title,
+                    FilePath = movieFile,
+                    ResumePositionSeconds = _item.ResumePositionSeconds,
+                    RuntimeMinutes = 120
+                };
+                OpenPlayer(movieEpisode, isMovie: true);
+                return;
+            }
 
             if (string.IsNullOrEmpty(_item.FolderPath))
             {
@@ -459,306 +493,56 @@ namespace Vault.Views
                 return;
             }
 
+            // Next unwatched with resume position
             var current = _allEpisodes
                 .OrderBy(ep => ep.SeasonNumber).ThenBy(ep => ep.EpisodeNumber)
                 .FirstOrDefault(ep => !ep.IsWatched && ep.ResumePositionSeconds > 0);
 
+            // Next unwatched with a file
             current ??= _allEpisodes
                 .OrderBy(ep => ep.SeasonNumber).ThenBy(ep => ep.EpisodeNumber)
                 .FirstOrDefault(ep => !ep.IsWatched && FindEpisodeFile(ep) != null);
 
+            // Any episode with a file
             current ??= _allEpisodes
                 .OrderBy(ep => ep.SeasonNumber).ThenBy(ep => ep.EpisodeNumber)
                 .FirstOrDefault(ep => FindEpisodeFile(ep) != null);
 
             if (current != null)
-                await PlayEpisodeAsync(current);
+            {
+                string? filePath = FindEpisodeFile(current);
+                if (filePath != null) current.FilePath = filePath;
+                OpenPlayer(current);
+            }
             else
+            {
                 ShowMessage("No video files found in the selected folder.", "#e17055");
+            }
         }
 
-        private async Task PlayEpisodeAsync(Episode episode)
+        private void OpenPlayer(Episode startEpisode, bool isMovie = false)
         {
-            string? filePath = episode.FilePath;
-            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            var playlist = isMovie
+                ? new List<Episode> { startEpisode }
+                : _allEpisodes;
+
+            var player = new PlayerWindow(_item, startEpisode, playlist);
+            player.Closed += (s, e) =>
             {
-                filePath = FindEpisodeFile(episode);
-                if (filePath != null)
+                _ = Dispatcher.InvokeAsync(async () =>
                 {
-                    using var db = new VaultContext();
-                    var dbEp = await db.Episodes.FindAsync(episode.Id);
-                    if (dbEp != null)
-                    {
-                        dbEp.FilePath = filePath;
-                        episode.FilePath = filePath;
-                        await db.SaveChangesAsync();
-                    }
-                }
-            }
-
-            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
-            {
-                ShowMessage("File not found. Set the media folder first.", "#e17055");
-                return;
-            }
-
-            string? vlcPath = FindVlc();
-            if (vlcPath == null)
-            {
-                ShowMessage("VLC not found. Please install VLC.", "#e17055");
-                return;
-            }
-
-            long startTime = episode.ResumePositionSeconds;
-            string vlcArgs = startTime > 0
-                ? $"--start-time={startTime} \"{filePath}\""
-                : $"\"{filePath}\"";
-
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = vlcPath,
-                    Arguments = vlcArgs,
-                    UseShellExecute = false
-                },
-                EnableRaisingEvents = true
-            };
-
-            process.Start();
-            ShowMessage(
-                $"Playing S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}" +
-                (startTime > 0
-                    ? $" — resuming from {TimeSpan.FromSeconds(startTime):mm\\:ss}"
-                    : ""),
-                "#00b894");
-
-            string? capturedFilePath = filePath;
-            _ = Task.Run(async () =>
-            {
-                await process.WaitForExitAsync();
-                await Task.Delay(1000);
-
-                await Dispatcher.InvokeAsync(async () =>
-                {
-                    long runtimeSeconds = episode.RuntimeMinutes > 0
-                        ? episode.RuntimeMinutes * 60
-                        : 1440;
-
-                    long? vlcPosition = ReadVlcLastPosition(capturedFilePath);
-                    if (vlcPosition == null || vlcPosition < 10) return;
-
-                    bool finishedWatching = vlcPosition >= runtimeSeconds * 0.95;
-
-                    if (finishedWatching)
-                        await MarkEpisodeWatchedAsync(episode);
-                    else
-                        await SaveResumePositionAsync(episode, vlcPosition.Value);
-                });
-            });
-        }
-
-        private async Task PlayMovieAsync()
-        {
-            string? filePath = FindMovieFile();
-            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
-            {
-                ShowMessage("File not found. Set the media folder first.", "#e17055");
-                return;
-            }
-
-            string? vlcPath = FindVlc();
-            if (vlcPath == null)
-            {
-                ShowMessage("VLC not found. Please install VLC.", "#e17055");
-                return;
-            }
-
-            long startTime = _item.ResumePositionSeconds;
-            string vlcArgs = startTime > 0
-                ? $"--start-time={startTime} \"{filePath}\""
-                : $"\"{filePath}\"";
-
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = vlcPath,
-                    Arguments = vlcArgs,
-                    UseShellExecute = false
-                },
-                EnableRaisingEvents = true
-            };
-
-            process.Start();
-            ShowMessage(
-                startTime > 0
-                    ? $"Resuming from {TimeSpan.FromSeconds(startTime):mm\\:ss}..."
-                    : "Playing...",
-                "#00b894");
-
-            string? capturedFilePath = filePath;
-            _ = Task.Run(async () =>
-            {
-                await process.WaitForExitAsync();
-                await Task.Delay(1000);
-
-                await Dispatcher.InvokeAsync(async () =>
-                {
-                    long? vlcPosition = ReadVlcLastPosition(capturedFilePath);
-                    if (vlcPosition == null || vlcPosition < 10) return;
-
-                    long runtimeSeconds = 7200;
-                    bool finished = vlcPosition >= runtimeSeconds * 0.95;
-
-                    using var db = new VaultContext();
-                    var dbItem = await db.MediaItems.FindAsync(_item.Id);
-                    if (dbItem != null)
-                    {
-                        if (finished)
-                        {
-                            dbItem.WatchStatus = "Completed";
-                            dbItem.ResumePositionSeconds = 0;
-                            _item.WatchStatus = "Completed";
-                            _item.ResumePositionSeconds = 0;
-                        }
-                        else
-                        {
-                            dbItem.ResumePositionSeconds = vlcPosition.Value;
-                            _item.ResumePositionSeconds = vlcPosition.Value;
-                            ShowMessage(
-                                $"Saved — resumes from {TimeSpan.FromSeconds(vlcPosition.Value):mm\\:ss}",
-                                "#00b894");
-                        }
-                        await db.SaveChangesAsync();
-                    }
-
-                    TxtStatus.Text = _item.WatchStatus;
-                    StatusDot.Fill = new SolidColorBrush(GetStatusColor(_item.WatchStatus));
-                    RefreshProgressBar();
+                    await LoadEpisodesAsync();
+                    BuildSeasonTabs();
+                    await ShowSeasonAsync(_currentSeason == -1 ? -1 : _currentSeason);
+                    UpdateNextEpisodePanel();
                     UpdatePlayButton();
+                    TxtProgress.Text = _isMovie
+                        ? (_item.WatchStatus == "Completed" ? "Watched" : "Not Watched")
+                        : $"{_item.WatchedEpisodes} / {_item.TotalEpisodes}";
+                    RefreshProgressBar();
                 });
-            });
-        }
-
-        private static long? ReadVlcLastPosition(string? filePath)
-        {
-            try
-            {
-                string iniPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "vlc", "vlc-qt-interface.ini");
-
-                if (!File.Exists(iniPath) || filePath == null) return null;
-
-                string content = File.ReadAllText(iniPath);
-
-                int sectionIdx = content.IndexOf("[RecentsMRL]",
-                    StringComparison.OrdinalIgnoreCase);
-                if (sectionIdx < 0) return null;
-
-                string section = content.Substring(sectionIdx);
-
-                var listMatch = System.Text.RegularExpressions.Regex.Match(
-                    section, @"list=(.+?)(\r?\n|$)");
-                var timesMatch = System.Text.RegularExpressions.Regex.Match(
-                    section, @"times=(.+?)(\r?\n|$)");
-
-                if (!listMatch.Success || !timesMatch.Success) return null;
-
-                string[] recentFiles = listMatch.Groups[1].Value
-                    .Split(", ", StringSplitOptions.RemoveEmptyEntries);
-                string[] times = timesMatch.Groups[1].Value
-                    .Split(", ", StringSplitOptions.RemoveEmptyEntries);
-
-                string filePathForward = filePath.Replace("\\", "/");
-
-                for (int i = 0; i < recentFiles.Length; i++)
-                {
-                    string vlcDecoded = Uri.UnescapeDataString(
-                        recentFiles[i].Replace("file:///", ""));
-
-                    if (vlcDecoded.Equals(filePathForward,
-                            StringComparison.OrdinalIgnoreCase) ||
-                        vlcDecoded.Contains(Path.GetFileName(filePath),
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (i < times.Length &&
-                            long.TryParse(times[i].Trim(), out long ms))
-                        {
-                            return ms > 0 ? ms / 1000 : null;
-                        }
-                    }
-                }
-
-                return null;
-            }
-            catch { return null; }
-        }
-
-        private async Task SaveResumePositionAsync(Episode episode, long positionSeconds)
-        {
-            using var db = new VaultContext();
-            var dbEp = await db.Episodes.FindAsync(episode.Id);
-            if (dbEp != null)
-            {
-                dbEp.ResumePositionSeconds = positionSeconds;
-                episode.ResumePositionSeconds = positionSeconds;
-                await db.SaveChangesAsync();
-            }
-
-            UpdatePlayButton();
-            await ShowSeasonAsync(_currentSeason == -1 ? -1 : _currentSeason);
-            ShowMessage(
-                $"Saved — resumes from {TimeSpan.FromSeconds(positionSeconds):mm\\:ss}",
-                "#00b894");
-        }
-
-        private async Task MarkEpisodeWatchedAsync(Episode episode)
-        {
-            using var db = new VaultContext();
-            var dbEp = await db.Episodes.FindAsync(episode.Id);
-            if (dbEp != null)
-            {
-                dbEp.IsWatched = true;
-                dbEp.WatchedDate = DateTime.Now;
-                dbEp.ResumePositionSeconds = 0;
-                episode.IsWatched = true;
-                episode.WatchedDate = DateTime.Now;
-                episode.ResumePositionSeconds = 0;
-            }
-
-            var dbItem = await db.MediaItems.FindAsync(_item.Id);
-            if (dbItem != null)
-            {
-                dbItem.WatchedEpisodes = await db.Episodes
-                    .CountAsync(e => e.MediaItemId == _item.Id && e.IsWatched);
-                dbItem.CurrentEpisode = episode.EpisodeNumber;
-                dbItem.CurrentSeason = episode.SeasonNumber;
-
-                if (dbItem.WatchedEpisodes == 0)
-                    dbItem.WatchStatus = "Not Started";
-                else if (dbItem.TotalEpisodes > 0 &&
-                         dbItem.WatchedEpisodes >= dbItem.TotalEpisodes)
-                    dbItem.WatchStatus = "Completed";
-                else
-                    dbItem.WatchStatus = "Watching";
-
-                _item.WatchedEpisodes = dbItem.WatchedEpisodes;
-                _item.WatchStatus = dbItem.WatchStatus;
-                _item.CurrentEpisode = dbItem.CurrentEpisode;
-                _item.CurrentSeason = dbItem.CurrentSeason;
-            }
-
-            await db.SaveChangesAsync();
-
-            TxtStatus.Text = _item.WatchStatus;
-            StatusDot.Fill = new SolidColorBrush(GetStatusColor(_item.WatchStatus));
-            TxtProgress.Text = $"{_item.WatchedEpisodes} / {_item.TotalEpisodes}";
-            RefreshProgressBar();
-            UpdatePlayButton();
-            UpdateNextEpisodePanel();
-            await ShowSeasonAsync(_currentSeason == -1 ? -1 : _currentSeason);
+            };
+            player.Show();
         }
 
         private void UpdatePlayButton()
@@ -771,7 +555,8 @@ namespace Vault.Views
             }
 
             var withResume = _allEpisodes
-                .OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber)
+                .OrderByDescending(e => e.ResumePositionSeconds > 0)
+                .ThenBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber)
                 .FirstOrDefault(e => !e.IsWatched && e.ResumePositionSeconds > 0);
 
             if (withResume != null)
@@ -945,7 +730,6 @@ namespace Vault.Views
 
             if (result != MessageBoxResult.Yes) return;
 
-            // Step 1 — Delete existing episodes and reset TmdbIds
             using (var db = new VaultContext())
             {
                 var episodes = await db.Episodes
@@ -966,13 +750,11 @@ namespace Vault.Views
             _allEpisodes.Clear();
             ShowMessage("Episodes cleared — re-fetching from TMDB...", "#636e72");
 
-            // Step 2 — Re-fetch with a fresh context
             using (var freshDb = new VaultContext())
             {
                 await FetchAndSaveEpisodesAsync(freshDb);
             }
 
-            // Step 3 — Rebuild UI
             BuildSeasonTabs();
             await ShowSeasonAsync(_currentSeason == -1 ? -1 : _currentSeason);
             UpdateNextEpisodePanel();
@@ -984,19 +766,81 @@ namespace Vault.Views
         private string? FindEpisodeFile(Episode episode)
         {
             if (string.IsNullOrEmpty(_item.FolderPath)) return null;
-            if (!Directory.Exists(_item.FolderPath)) return null;
+
+            var searchPaths = new List<string> { _item.FolderPath };
+            string? parent = System.IO.Path.GetDirectoryName(_item.FolderPath);
+            if (!string.IsNullOrEmpty(parent) && parent != _item.FolderPath)
+                searchPaths.Add(parent);
 
             string[] videoExts = { ".mkv", ".mp4", ".avi", ".m4v", ".mov" };
-            string epPattern = $"S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
-            string epPatternAlt = $"{episode.SeasonNumber}x{episode.EpisodeNumber:D2}";
 
-            var files = Directory.GetFiles(_item.FolderPath, "*",
-                SearchOption.AllDirectories)
-                .Where(f => videoExts.Contains(Path.GetExtension(f).ToLower()));
+            var allFiles = new List<string>();
+            foreach (string searchPath in searchPaths)
+            {
+                if (!System.IO.Directory.Exists(searchPath)) continue;
+                try
+                {
+                    allFiles.AddRange(
+                        System.IO.Directory.GetFiles(searchPath, "*",
+                            System.IO.SearchOption.AllDirectories)
+                        .Where(f => videoExts.Contains(
+                            System.IO.Path.GetExtension(f).ToLower())));
+                }
+                catch { }
+            }
 
-            return files.FirstOrDefault(f =>
-                f.Contains(epPattern, StringComparison.OrdinalIgnoreCase) ||
-                f.Contains(epPatternAlt, StringComparison.OrdinalIgnoreCase));
+            if (allFiles.Count == 0) return null;
+
+            // Calculate local episode number by ID match, not object reference
+            var episodesInSeason = _allEpisodes
+                .Where(e => e.SeasonNumber == episode.SeasonNumber)
+                .OrderBy(e => e.EpisodeNumber)
+                .ToList();
+            int localEpNumber = episodesInSeason.FindIndex(e => e.Id == episode.Id) + 1;
+            if (localEpNumber == 0) localEpNumber = 1;
+
+            // Strategy 1: exact season + local episode number (S03E01, S03E02...)
+            {
+                string pattern = $"S{episode.SeasonNumber:D2}E{localEpNumber:D2}";
+                var match = allFiles.FirstOrDefault(f =>
+                    f.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+                if (match != null) return match;
+            }
+
+            // Strategy 2: exact season + global episode number (S03E27, S03E28...)
+            {
+                string pattern = $"S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
+                var match = allFiles.FirstOrDefault(f =>
+                    f.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+                if (match != null) return match;
+            }
+
+            // Strategy 3: NxMM with local number (3x01)
+            {
+                string pattern = $"{episode.SeasonNumber}x{localEpNumber:D2}";
+                var match = allFiles.FirstOrDefault(f =>
+                    f.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+                if (match != null) return match;
+            }
+
+            // Strategy 4: NxMM with global number (3x27)
+            {
+                string pattern = $"{episode.SeasonNumber}x{episode.EpisodeNumber:D2}";
+                var match = allFiles.FirstOrDefault(f =>
+                    f.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+                if (match != null) return match;
+            }
+
+            // Strategy 5: match by episode title first word
+            if (!string.IsNullOrEmpty(episode.Title) && episode.Title.Length > 5)
+            {
+                string titleKey = episode.Title.Split(' ').First();
+                var match = allFiles.FirstOrDefault(f =>
+                    f.Contains(titleKey, StringComparison.OrdinalIgnoreCase));
+                if (match != null) return match;
+            }
+
+            return null;
         }
 
         private string? FindMovieFile()
@@ -1009,15 +853,6 @@ namespace Vault.Views
                 SearchOption.AllDirectories)
                 .FirstOrDefault(f => videoExts.Contains(
                     Path.GetExtension(f).ToLower()));
-        }
-
-        private static string? FindVlc()
-        {
-            string[] commonPaths = {
-                @"C:\Program Files\VideoLAN\VLC\vlc.exe",
-                @"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe"
-            };
-            return commonPaths.FirstOrDefault(File.Exists);
         }
 
         private void ShowMessage(string msg, string color)

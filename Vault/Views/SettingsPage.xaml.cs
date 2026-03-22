@@ -28,6 +28,7 @@ namespace Vault.Views
             TxtTmdbKey.Text = _settings.TmdbApiKey;
             TxtSteamKey.Text = _settings.SteamApiKey;
             TxtSteamId.Text = _settings.SteamUserId;
+            TxtOpenVGDB.Text = _settings.OpenVGDBPath ?? "";
             TxtGamesExcel.Text = _settings.GamesExcelPath;
             TxtMediaExcel.Text = _settings.MediaExcelPath;
         }
@@ -44,30 +45,24 @@ namespace Vault.Views
             _settings.TmdbApiKey = TxtTmdbKey.Text.Trim();
             _settings.SteamApiKey = TxtSteamKey.Text.Trim();
             _settings.SteamUserId = TxtSteamId.Text.Trim();
+            _settings.OpenVGDBPath = TxtOpenVGDB.Text.Trim();
             _settings.GamesExcelPath = TxtGamesExcel.Text.Trim();
             _settings.MediaExcelPath = TxtMediaExcel.Text.Trim();
             _settings.Save();
 
             TxtSaveStatus.Text = "Settings saved successfully.";
             TxtSaveStatus.Visibility = Visibility.Visible;
-            
         }
 
         private string BrowseFolder()
         {
-            var dialog = new OpenFolderDialog
-            {
-                Title = "Select Folder"
-            };
+            var dialog = new OpenFolderDialog { Title = "Select Folder" };
             return dialog.ShowDialog() == true ? dialog.FolderName : string.Empty;
         }
 
         private string BrowseFile(string filter)
         {
-            var dialog = new OpenFileDialog
-            {
-                Filter = filter
-            };
+            var dialog = new OpenFileDialog { Filter = filter };
             return dialog.ShowDialog() == true ? dialog.FileName : string.Empty;
         }
 
@@ -105,6 +100,12 @@ namespace Vault.Views
         {
             var path = BrowseFolder();
             if (!string.IsNullOrEmpty(path)) TxtDataFolder.Text = path;
+        }
+
+        private void BrowseOpenVGDB_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseFile("SQLite Database|*.sqlite;*.db|All files|*.*");
+            if (!string.IsNullOrEmpty(path)) TxtOpenVGDB.Text = path;
         }
 
         private void BrowseGamesExcel_Click(object sender, RoutedEventArgs e)

@@ -130,7 +130,8 @@ namespace Vault.Views
 
             try
             {
-                var service = new BoxArtService(_settings);
+                var steamGridService = new BoxArtService(_settings);
+                var openVgdbService = new OpenVGDBService(_settings);
                 using var db = new VaultContext();
                 var dbLock = new object();
                 var newAttempted = new ConcurrentBag<int>();
@@ -144,15 +145,21 @@ namespace Vault.Views
                     try
                     {
                         if (token.IsCancellationRequested) return;
-
                         await Task.Delay(200, token);
 
-                        string? path = await service.GetBoxArtAsync(game);
-                        newAttempted.Add(game.Id);
+                        // Try SteamGridDB first
+                        string? path = await steamGridService.GetBoxArtAsync(game);
+
+                        // If SteamGridDB failed, try OpenVGDB as fallback
+                        if (path == null && openVgdbService.IsConfigured)
+                            path = await openVgdbService.GetBoxArtAsync(game);
 
                         if (path != null)
                         {
                             game.BoxArtPath = path;
+
+                            // Only mark as attempted if successful
+                            newAttempted.Add(game.Id);
 
                             Dispatcher.Invoke(() =>
                             {
@@ -176,9 +183,10 @@ namespace Vault.Views
                             if (done % 10 == 0 && !token.IsCancellationRequested)
                                 await db.SaveChangesAsync();
                         }
+                        // If both failed — do NOT add to newAttempted, retry next session
                     }
                     catch (OperationCanceledException) { throw; }
-                    catch { newAttempted.Add(game.Id); }
+                    catch { }
                     finally { semaphore.Release(); }
                 });
 
@@ -194,7 +202,9 @@ namespace Vault.Views
                         .Select(id => id.ToString());
                     await System.IO.File.WriteAllLinesAsync(attemptCacheFile, allAttempted);
 
-                    Dispatcher.Invoke(() => TxtArtStatus.Text = $"Done — {completed} new art fetched");
+                    Dispatcher.Invoke(() => TxtArtStatus.Text = completed > 0
+                        ? $"Done — {completed} new art fetched"
+                        : "All art loaded");
                 }
             }
             catch (OperationCanceledException)
