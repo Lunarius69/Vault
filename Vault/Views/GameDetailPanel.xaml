@@ -51,14 +51,10 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- BANNER SECTION -->
         <Grid Grid.Row="0" Height="340">
-
-            <!-- Banner image background -->
             <Border ClipToBounds="True">
                 <Grid>
                     <Image x:Name="ImgBanner" Stretch="UniformToFill"/>
-                    <!-- Dark gradient overlay so text is readable -->
                     <Border>
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -71,7 +67,6 @@
                 </Grid>
             </Border>
 
-            <!-- Back button top left -->
             <Button x:Name="BtnBack" Content="← Back"
                     HorizontalAlignment="Left" VerticalAlignment="Top"
                     Margin="20,16,0,0"
@@ -96,10 +91,7 @@
                 </Button.Template>
             </Button>
 
-            <!-- Title + platform + status overlaid on banner bottom -->
             <StackPanel VerticalAlignment="Bottom" Margin="32,0,32,24">
-
-                <!-- Platform badge + status in a row -->
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                     <Border x:Name="PlatformBadge" CornerRadius="4"
                             Padding="10,3" Margin="0,0,8,0">
@@ -115,8 +107,6 @@
                                    VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
-
-                <!-- Game title -->
                 <TextBlock x:Name="TxtTitle"
                            Foreground="#ffffff" FontSize="32"
                            FontWeight="Bold" FontFamily="Segoe UI"
@@ -124,28 +114,22 @@
             </StackPanel>
         </Grid>
 
-        <!-- MAIN CONTENT below banner -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <Grid Margin="32,24,32,32">
                 <Grid.ColumnDefinitions>
-                    <!-- Left column: launch + info -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Right column: HLTB + achievements + description -->
                     <ColumnDefinition Width="320"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT COLUMN -->
                 <StackPanel Grid.Column="0" Margin="0,0,24,0">
 
-                    <!-- Launch button — big and prominent -->
                     <Button x:Name="BtnLaunch"
                             Style="{StaticResource ActionBtn}"
                             Background="#e94560" Foreground="White"
-                            Margin="0,0,0,12"
+                            Margin="0,0,0,8"
                             Click="BtnLaunch_Click"/>
 
-                    <!-- Set path + edit status -->
-                    <Grid Margin="0,0,0,24">
+                    <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="8"/>
@@ -161,13 +145,18 @@
                                 Click="BtnEditStatus_Click"/>
                     </Grid>
 
-                    <!-- Status message -->
+                    <Button x:Name="BtnMarkNotDownloaded"
+                            Content="✕  Mark as Not Downloaded"
+                            Style="{StaticResource ActionBtn}"
+                            Background="#1a1a2e" Foreground="#636e72"
+                            Margin="0,0,0,16"
+                            Click="BtnMarkNotDownloaded_Click"/>
+
                     <TextBlock x:Name="TxtMessage" Foreground="#00b894"
                                FontSize="12" FontFamily="Segoe UI"
                                TextWrapping="Wrap" Margin="0,0,0,16"
                                Visibility="Collapsed"/>
 
-                    <!-- Info grid: 2x3 -->
                     <Border Background="#16213e" CornerRadius="12"
                             Padding="20" Margin="0,0,0,16">
                         <Grid>
@@ -204,7 +193,6 @@
                         </Grid>
                     </Border>
 
-                    <!-- Description -->
                     <Border Background="#16213e" CornerRadius="12" Padding="20">
                         <StackPanel>
                             <TextBlock Text="DESCRIPTION" Style="{StaticResource DetailLabel}"
@@ -217,10 +205,8 @@
                     </Border>
                 </StackPanel>
 
-                <!-- RIGHT COLUMN -->
                 <StackPanel Grid.Column="1">
 
-                    <!-- Box art -->
                     <Border CornerRadius="10" ClipToBounds="True"
                             Height="220" Margin="0,0,0,16">
                         <Grid>
@@ -236,7 +222,6 @@
                         </Grid>
                     </Border>
 
-                    <!-- HLTB -->
                     <Border Background="#16213e" CornerRadius="12"
                             Padding="20" Margin="0,0,0,16">
                         <StackPanel>
@@ -280,7 +265,6 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Achievements -->
                     <Border x:Name="AchievementsPanel" Background="#16213e"
                             CornerRadius="12" Padding="20">
                         <StackPanel>
@@ -291,7 +275,6 @@
                                        Foreground="#ffffff" FontSize="22"
                                        FontWeight="Bold" FontFamily="Segoe UI"
                                        Margin="0,0,0,8"/>
-                            <!-- Progress bar -->
                             <Grid Height="8" Margin="0,0,0,6">
                                 <Border Background="#2d3561" CornerRadius="4"/>
                                 <Border x:Name="AchievementBarFill"

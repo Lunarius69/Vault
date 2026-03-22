@@ -5,7 +5,7 @@ using Vault.Models;
 
 namespace Vault.Views
 {
-    public partial class SettingsPage : Page
+    public partial class SettingsPage : UserControl
     {
         private AppSettings _settings;
 

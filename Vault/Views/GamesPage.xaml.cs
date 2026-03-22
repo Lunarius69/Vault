@@ -1,8 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,7 +25,7 @@ namespace Vault.Views
         private string _currentPlatform = "All";
         private string _currentStatus = "All";
         private bool _isGridView = true;
-        private bool _isFetchingArt = false;
+        private CancellationTokenSource? _artFetchCts;
 
         public event EventHandler<Game>? GameSelected;
 
@@ -35,74 +37,169 @@ namespace Vault.Views
             Loaded += GamesPage_Loaded;
         }
 
+        public async Task RefreshAsync()
+        {
+            using var db = new VaultContext();
+            _allGames = await db.Games
+                .Where(g => !g.IsWishlist)
+                .OrderBy(g => g.Title)
+                .ToListAsync();
+            BuildPlatformList();
+            ApplyFilters();
+        }
+
         private async void GamesPage_Loaded(object sender, RoutedEventArgs e)
-{
-    LoadingOverlay.Visibility = Visibility.Visible;
+        {
+            LoadingOverlay.Visibility = Visibility.Visible;
 
-    var detector = new AutoDetectService(_settings);
-    await detector.ScanAndUpdateAsync();
+            using (var cleanDb = new VaultContext())
+            {
+                var badGames = await cleanDb.Games
+                    .Where(g => g.Title == "v8_context_snapshot" ||
+                                g.ManuallyMarkedNotDownloaded == true)
+                    .ToListAsync();
+                foreach (var g in badGames)
+                {
+                    g.IsDownloaded = false;
+                    g.ExePath = null;
+                    g.EmulatorPath = null;
+                    g.ManuallyMarkedNotDownloaded = true;
+                }
+                if (badGames.Any())
+                    await cleanDb.SaveChangesAsync();
+            }
 
-    using var db = new VaultContext();
-    _allGames = await db.Games
-        .Where(g => !g.IsWishlist)
-        .OrderBy(g => g.Title)
-        .ToListAsync();
+            var detector = new AutoDetectService(_settings);
+            await detector.ScanAndUpdateAsync();
 
-    LoadingOverlay.Visibility = Visibility.Collapsed;
-    BuildPlatformList();
-    ApplyFilters();
-}
+            using var db = new VaultContext();
+            _allGames = await db.Games
+                .Where(g => !g.IsWishlist)
+                .OrderBy(g => g.Title)
+                .ToListAsync();
 
-        private async Task FetchMissingBoxArtAsync(List<GameTileViewModel> tiles)
+            LoadingOverlay.Visibility = Visibility.Collapsed;
+            BuildPlatformList();
+            ApplyFilters();
+
+            _ = FetchAllMissingBoxArtAsync();
+        }
+
+        private string GetAttemptCacheFile()
+        {
+            string folder = string.IsNullOrEmpty(_settings.DataFolderPath)
+                ? System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Vault", "cache")
+                : System.IO.Path.Combine(_settings.DataFolderPath, "cache");
+            System.IO.Directory.CreateDirectory(folder);
+            return System.IO.Path.Combine(folder, "art_attempted.txt");
+        }
+
+        private async Task FetchAllMissingBoxArtAsync()
         {
             if (string.IsNullOrEmpty(_settings.SteamGridDbApiKey)) return;
-            if (_isFetchingArt) return;
 
-            var missing = tiles.Where(t => !t.HasBoxArt).ToList();
-            if (missing.Count == 0) return;
+            string attemptCacheFile = GetAttemptCacheFile();
 
-            _isFetchingArt = true;
+            var attempted = new HashSet<int>();
+            if (System.IO.File.Exists(attemptCacheFile))
+            {
+                foreach (var line in await System.IO.File.ReadAllLinesAsync(attemptCacheFile))
+                    if (int.TryParse(line.Trim(), out int id))
+                        attempted.Add(id);
+            }
+
+            var toFetch = _allGames
+                .Where(g => !attempted.Contains(g.Id) &&
+                            (string.IsNullOrEmpty(g.BoxArtPath) ||
+                             !System.IO.File.Exists(g.BoxArtPath)))
+                .ToList();
+
+            if (toFetch.Count == 0)
+            {
+                Dispatcher.Invoke(() => TxtArtStatus.Text = "All art loaded");
+                return;
+            }
+
+            Dispatcher.Invoke(() => TxtArtStatus.Text = $"Fetching art: 0/{toFetch.Count}");
+
+            _artFetchCts?.Cancel();
+            _artFetchCts = new CancellationTokenSource();
+            var token = _artFetchCts.Token;
 
             try
             {
                 var service = new BoxArtService(_settings);
                 using var db = new VaultContext();
-                bool anyUpdated = false;
                 var dbLock = new object();
-                var semaphore = new System.Threading.SemaphoreSlim(5);
+                var newAttempted = new ConcurrentBag<int>();
+                int completed = 0;
+                var semaphore = new SemaphoreSlim(3);
 
-                var tasks = missing.Select(async tile =>
+                var tasks = toFetch.Select(async game =>
                 {
-                    await semaphore.WaitAsync();
+                    if (token.IsCancellationRequested) return;
+                    await semaphore.WaitAsync(token);
                     try
                     {
-                        string? path = await service.GetBoxArtAsync(tile.Game);
+                        if (token.IsCancellationRequested) return;
+
+                        await Task.Delay(200, token);
+
+                        string? path = await service.GetBoxArtAsync(game);
+                        newAttempted.Add(game.Id);
+
                         if (path != null)
                         {
-                            Dispatcher.Invoke(() => tile.BoxArtPath = path);
+                            game.BoxArtPath = path;
+
+                            Dispatcher.Invoke(() =>
+                            {
+                                if (!token.IsCancellationRequested)
+                                {
+                                    var tile = _tiles.FirstOrDefault(t => t.Id == game.Id);
+                                    if (tile != null) tile.BoxArtPath = path;
+                                }
+                            });
+
                             lock (dbLock)
                             {
-                                var dbGame = db.Games.Find(tile.Id);
-                                if (dbGame != null)
-                                {
-                                    dbGame.BoxArtPath = path;
-                                    anyUpdated = true;
-                                }
+                                var dbGame = db.Games.Find(game.Id);
+                                if (dbGame != null) dbGame.BoxArtPath = path;
                             }
+
+                            int done = Interlocked.Increment(ref completed);
+                            Dispatcher.Invoke(() =>
+                                TxtArtStatus.Text = $"Fetching art: {done}/{toFetch.Count}");
+
+                            if (done % 10 == 0 && !token.IsCancellationRequested)
+                                await db.SaveChangesAsync();
                         }
                     }
-                    catch { }
+                    catch (OperationCanceledException) { throw; }
+                    catch { newAttempted.Add(game.Id); }
                     finally { semaphore.Release(); }
                 });
 
                 await Task.WhenAll(tasks);
 
-                if (anyUpdated)
+                if (!token.IsCancellationRequested)
+                {
                     await db.SaveChangesAsync();
+
+                    var allAttempted = attempted
+                        .Concat(newAttempted)
+                        .Distinct()
+                        .Select(id => id.ToString());
+                    await System.IO.File.WriteAllLinesAsync(attemptCacheFile, allAttempted);
+
+                    Dispatcher.Invoke(() => TxtArtStatus.Text = $"Done — {completed} new art fetched");
+                }
             }
-            finally
+            catch (OperationCanceledException)
             {
-                _isFetchingArt = false;
+                Dispatcher.Invoke(() => TxtArtStatus.Text = "Art fetch cancelled");
             }
         }
 
@@ -243,7 +340,6 @@ namespace Vault.Views
 
             if (_isGridView)
             {
-                // Preserve already-loaded box art so re-sorting is instant
                 var existingArt = _tiles.ToDictionary(t => t.Id, t => t.BoxArtPath);
 
                 _tiles = new ObservableCollection<GameTileViewModel>(
@@ -257,10 +353,6 @@ namespace Vault.Views
                     }));
 
                 GamesItemsControl.ItemsSource = _tiles;
-
-                var stillMissing = _tiles.Where(t => !t.HasBoxArt).ToList();
-                if (stillMissing.Count > 0)
-                    _ = FetchMissingBoxArtAsync(stillMissing);
             }
             else
             {

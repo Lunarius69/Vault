@@ -11,6 +11,7 @@ namespace Vault.Models
         public string? Genre { get; set; }
         public string? PosterPath { get; set; }
         public string? BannerPath { get; set; }
+        public string? TmdbIds { get; set; } // Comma-separated list of TMDB IDs
         public string? Description { get; set; }
         public double? TmdbRating { get; set; }
         public string WatchStatus { get; set; } = "Not Started";

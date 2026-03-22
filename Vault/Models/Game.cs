@@ -24,6 +24,8 @@ namespace Vault.Models
         public bool IsWishlist { get; set; } = false;
         public bool IsDownloaded { get; set; } = false;
 
+        public bool ManuallyMarkedNotDownloaded { get; set; } = false;
+
         // Achievements
         public int? AchievementsEarned { get; set; }
         public int? AchievementsTotal { get; set; }

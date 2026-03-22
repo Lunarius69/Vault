@@ -38,14 +38,7 @@ namespace Vault.Views
 
             using var db = new VaultContext();
             _allItems = await db.MediaItems
-                .Where(m => m.MediaType == _mediaType ||
-                            // Group animated/anime movies under movies page
-                            (_mediaType == "Movie" && (m.MediaType == "AnimeMovie" ||
-                                                       m.MediaType == "AnimatedMovie")) ||
-                            // Group animated series under shows page
-                            (_mediaType == "Show" && m.MediaType == "AnimatedSeries") ||
-                            // Anime movies show under anime page
-                            (_mediaType == "Anime" && m.MediaType == "AnimeMovie"))
+                .Where(m => m.MediaType == _mediaType)
                 .OrderBy(m => m.Title)
                 .ToListAsync();
 
@@ -84,7 +77,8 @@ namespace Vault.Views
                         int tmdbId = tile.Item.TmdbId;
                         if (tmdbId == 0)
                         {
-                            int? found = await tmdb.SearchAsync(tile.Title, isSeries);
+                            int? found = await tmdb.SearchAsync(
+                                tile.Title, isSeries, tile.Item.Year);
                             if (found == null) return;
                             tmdbId = found.Value;
                         }
@@ -93,9 +87,17 @@ namespace Vault.Views
                         var details = await tmdb.FetchDetailsAsync(tmdbId, isSeries);
                         if (details == null) return;
 
-                        // Download poster
+                        // Download poster — use season-specific for series
                         string? posterPath = null;
-                        if (!string.IsNullOrEmpty(details.PosterPath))
+                        if (isSeries)
+                        {
+                            int seasonNum = TmdbService.ExtractSeasonNumber(tile.Title);
+                            posterPath = await tmdb.DownloadSeasonPosterAsync(
+                                tile.Id, tmdbId, seasonNum);
+                        }
+
+                        // Fall back to show-level poster if season poster not found
+                        if (posterPath == null && !string.IsNullOrEmpty(details.PosterPath))
                             posterPath = await tmdb.DownloadPosterAsync(
                                 tile.Id, details.PosterPath);
 
@@ -198,7 +200,6 @@ namespace Vault.Views
             if (TxtItemCount != null)
                 TxtItemCount.Text = $"{list.Count} titles";
 
-            // Preserve already-loaded posters so re-sorting is instant
             var existingPosters = _tiles.ToDictionary(t => t.Id, t => t.PosterPath);
 
             _tiles = new ObservableCollection<MediaTileViewModel>(

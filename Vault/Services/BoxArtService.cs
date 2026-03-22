@@ -78,21 +78,48 @@ namespace Vault.Services
 
         private async Task<int?> SearchGameAsync(string title)
         {
-            string encoded = Uri.EscapeDataString(title);
-            string url = $"https://www.steamgriddb.com/api/v2/search/autocomplete/{encoded}";
+            try
+            {
+                // Try exact autocomplete first
+                string encoded = Uri.EscapeDataString(title);
+                string url = $"https://www.steamgriddb.com/api/v2/search/autocomplete/{encoded}";
 
-            var response = await _http.GetAsync(url);
-            if (!response.IsSuccessStatusCode) return null;
+                var response = await _http.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    string json = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(json);
+                    if (doc.RootElement.GetProperty("success").GetBoolean())
+                    {
+                        var data = doc.RootElement.GetProperty("data");
+                        if (data.GetArrayLength() > 0)
+                            return data[0].GetProperty("id").GetInt32();
+                    }
+                }
 
-            string json = await response.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(json);
+                // Fallback: try with cleaned title removing subtitles after colon
+                if (title.Contains(":"))
+                {
+                    string shortTitle = title.Split(':')[0].Trim();
+                    encoded = Uri.EscapeDataString(shortTitle);
+                    url = $"https://www.steamgriddb.com/api/v2/search/autocomplete/{encoded}";
+                    response = await _http.GetAsync(url);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string json = await response.Content.ReadAsStringAsync();
+                        using var doc = JsonDocument.Parse(json);
+                        if (doc.RootElement.GetProperty("success").GetBoolean())
+                        {
+                            var data = doc.RootElement.GetProperty("data");
+                            if (data.GetArrayLength() > 0)
+                                return data[0].GetProperty("id").GetInt32();
+                        }
+                    }
+                }
 
-            if (!doc.RootElement.GetProperty("success").GetBoolean()) return null;
-
-            var data = doc.RootElement.GetProperty("data");
-            if (data.GetArrayLength() == 0) return null;
-
-            return data[0].GetProperty("id").GetInt32();
+                return null;
+            }
+            catch { return null; }
         }
 
         private async Task<string?> GetGridImageUrlAsync(int gameId)

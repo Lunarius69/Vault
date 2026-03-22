@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Vault.Database;
 
@@ -10,9 +11,11 @@ using Vault.Database;
 namespace Vault.Migrations
 {
     [DbContext(typeof(VaultContext))]
-    partial class VaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260321123810_AddManuallyMarkedField")]
+    partial class AddManuallyMarkedField
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.4");
@@ -184,9 +187,6 @@ namespace Vault.Migrations
 
                     b.Property<int>("TmdbId")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("TmdbIds")
-                        .HasColumnType("TEXT");
 
                     b.Property<double?>("TmdbRating")
                         .HasColumnType("REAL");

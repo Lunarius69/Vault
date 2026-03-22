@@ -3,8 +3,10 @@ using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using Vault.Database;
 using Vault.Models;
 using Vault.Services;
@@ -19,6 +21,7 @@ namespace Vault.Views
         private readonly RetroAchievementsService? _ra;
         private readonly BoxArtService? _boxArt;
         public event EventHandler? BackRequested;
+        public event EventHandler? GameUpdated;
 
         public GameDetailPage(Game game, AppSettings settings)
         {
@@ -89,6 +92,30 @@ namespace Vault.Views
             }
         }
 
+        private async void BtnMarkNotDownloaded_Click(object sender, RoutedEventArgs e)
+        {
+            if (_game == null) return;
+
+            using var db = new VaultContext();
+            var dbGame = await db.Games.FindAsync(_game.Id);
+            if (dbGame == null) return;
+
+            dbGame.IsDownloaded = false;
+            dbGame.ExePath = null;
+            dbGame.EmulatorPath = null;
+            dbGame.ManuallyMarkedNotDownloaded = true;
+            _game.IsDownloaded = false;
+            _game.ExePath = null;
+            _game.EmulatorPath = null;
+
+            await db.SaveChangesAsync();
+
+            BtnLaunch.IsEnabled = false;
+            BtnLaunch.Content = "▶   Not Downloaded";
+            ShowMessage("Marked as not downloaded.", "#636e72");
+            GameUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
         private void LoadBoxArt()
         {
             if (!string.IsNullOrEmpty(_game.BoxArtPath) && File.Exists(_game.BoxArtPath))
@@ -111,6 +138,7 @@ namespace Vault.Views
                 TxtPlaceholder.Text = _game.Title;
             }
         }
+
 
         private void UpdateLaunchButton()
         {
@@ -265,11 +293,119 @@ namespace Vault.Views
             ShowMessage("Path saved!", "#00b894");
         }
 
-        private async void BtnEditStatus_Click(object sender, RoutedEventArgs e)
+        private void BtnEditStatus_Click(object sender, RoutedEventArgs e)
         {
+            var popup = new System.Windows.Controls.Primitives.Popup
+            {
+                PlacementTarget = sender as Button,
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+                StaysOpen = false,
+                AllowsTransparency = true
+            };
+
+            var button = sender as Button;
+
+            var border = new Border
+            {
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16213e")),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561")),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(4),
+                MinWidth = button?.ActualWidth ?? 200
+            };
+
+            var stack = new StackPanel();
             string[] statuses = { "Not Started", "Playing", "Completed", "On Hold", "Dropped" };
-            int idx = Array.IndexOf(statuses, _game.Status);
-            string newStatus = statuses[(idx + 1) % statuses.Length];
+
+            foreach (string status in statuses)
+            {
+                string statusColor = status switch
+                {
+                    "Playing" => "#00b894",
+                    "Completed" => "#0984e3",
+                    "Not Started" => "#636e72",
+                    "On Hold" => "#fdcb6e",
+                    "Dropped" => "#d63031",
+                    _ => "#636e72"
+                };
+
+                bool isCurrent = _game?.Status == status;
+
+                var btn = new Button
+                {
+                    Background = isCurrent
+                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561"))
+                        : Brushes.Transparent,
+                    BorderThickness = new Thickness(0),
+                    Cursor = Cursors.Hand,
+                    Padding = new Thickness(12, 8, 16, 8),
+                    HorizontalContentAlignment = HorizontalAlignment.Left
+                };
+
+                var btnPanel = new StackPanel { Orientation = Orientation.Horizontal };
+                btnPanel.Children.Add(new Ellipse
+                {
+                    Width = 8,
+                    Height = 8,
+                    Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(statusColor)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 10, 0)
+                });
+                btnPanel.Children.Add(new TextBlock
+                {
+                    Text = status,
+                    Foreground = isCurrent ? Brushes.White
+                        : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#b2bec3")),
+                    FontFamily = new FontFamily("Segoe UI"),
+                    FontSize = 13,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+
+                btn.Content = btnPanel;
+
+                var template = new ControlTemplate(typeof(Button));
+                var factory = new FrameworkElementFactory(typeof(Border));
+                factory.SetBinding(Border.BackgroundProperty,
+                    new System.Windows.Data.Binding("Background")
+                    {
+                        RelativeSource = new System.Windows.Data.RelativeSource(
+                            System.Windows.Data.RelativeSourceMode.TemplatedParent)
+                    });
+                factory.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+                var contentFactory = new FrameworkElementFactory(typeof(ContentPresenter));
+                contentFactory.SetValue(ContentPresenter.MarginProperty,
+                    new Thickness(0));
+                factory.AppendChild(contentFactory);
+                template.VisualTree = factory;
+                btn.Template = template;
+
+                string capturedStatus = status;
+                btn.Click += async (s, args) =>
+                {
+                    popup.IsOpen = false;
+                    await SetStatusAsync(capturedStatus);
+                };
+
+                btn.MouseEnter += (s, args) =>
+                    btn.Background = new SolidColorBrush(
+                        (Color)ColorConverter.ConvertFromString("#2d3561"));
+                btn.MouseLeave += (s, args) =>
+                    btn.Background = isCurrent
+                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561"))
+                        : Brushes.Transparent;
+
+                stack.Children.Add(btn);
+            }
+
+            border.Child = stack;
+            popup.Child = border;
+            popup.IsOpen = true;
+        }
+
+        private async Task SetStatusAsync(string newStatus)
+        {
+            if (_game == null) return;
 
             using var db = new VaultContext();
             var dbGame = await db.Games.FindAsync(_game.Id);
@@ -282,6 +418,7 @@ namespace Vault.Views
             TxtStatus.Text = newStatus;
             StatusDot.Fill = new SolidColorBrush(GetStatusColor(newStatus));
             ShowMessage($"Status: {newStatus}", "#00b894");
+            GameUpdated?.Invoke(this, EventArgs.Empty);
         }
 
         private void ShowMessage(string msg, string color)

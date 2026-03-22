@@ -38,7 +38,8 @@
             </Setter>
         </Style>
 
-        <Style x:Key="SidebarButtonActive" TargetType="Button" BasedOn="{StaticResource SidebarButton}">
+        <Style x:Key="SidebarButtonActive" TargetType="Button"
+               BasedOn="{StaticResource SidebarButton}">
             <Setter Property="Background" Value="#e94560"/>
             <Setter Property="Foreground" Value="#ffffff"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -67,40 +68,43 @@
                                VerticalAlignment="Center" Margin="20,0,0,0"/>
                 </Border>
 
-                <StackPanel Grid.Row="1" Margin="0,16,0,0">
-    <TextBlock Text="LIBRARY" Foreground="#636e72"
-               FontSize="10" FontWeight="Bold"
-               FontFamily="Segoe UI" Margin="28,8,0,4"/>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,16,0,0">
+                        <TextBlock Text="LIBRARY" Foreground="#636e72"
+                                   FontSize="10" FontWeight="Bold"
+                                   FontFamily="Segoe UI" Margin="28,8,0,4"/>
 
-    <Button x:Name="BtnGames" Content="🎮   Games"
-            Style="{StaticResource SidebarButtonActive}"
-            Click="BtnGames_Click"/>
-    <Button x:Name="BtnShows" Content="📺   TV Shows"
-            Style="{StaticResource SidebarButton}"
-            Click="BtnShows_Click"/>
-    <Button x:Name="BtnMovies" Content="🎬   Movies"
-            Style="{StaticResource SidebarButton}"
-            Click="BtnMovies_Click"/>
-    <Button x:Name="BtnAnime" Content="🎌   Anime"
-            Style="{StaticResource SidebarButton}"
-            Click="BtnAnime_Click"/>
+                        <Button x:Name="BtnGames" Content="🎮   Games"
+                                Style="{StaticResource SidebarButtonActive}"
+                                Click="BtnGames_Click"/>
+                        <Button x:Name="BtnShows" Content="📺   TV Shows"
+                                Style="{StaticResource SidebarButton}"
+                                Click="BtnShows_Click"/>
+                        <Button x:Name="BtnMovies" Content="🎬   Movies"
+                                Style="{StaticResource SidebarButton}"
+                                Click="BtnMovies_Click"/>
+                        <Button x:Name="BtnAnime" Content="🎌   Anime Series"
+                                Style="{StaticResource SidebarButton}"
+                                Click="BtnAnime_Click"/>
+                        <Button x:Name="BtnAnimeMov" Content="🎥   Anime Movies"
+                                Style="{StaticResource SidebarButton}"
+                                Click="BtnAnimeMov_Click"/>
+                        <Button x:Name="BtnAnimated" Content="🎨   Animated Series"
+                                Style="{StaticResource SidebarButton}"
+                                Click="BtnAnimated_Click"/>
+                        <Button x:Name="BtnAnimatedMov" Content="🎭   Animated Movies"
+                                Style="{StaticResource SidebarButton}"
+                                Click="BtnAnimatedMov_Click"/>
 
-    <TextBlock Text="GAMES" Foreground="#636e72"
-               FontSize="10" FontWeight="Bold"
-               FontFamily="Segoe UI" Margin="28,16,0,4"/>
+                        <TextBlock Text="OTHER" Foreground="#636e72"
+                                   FontSize="10" FontWeight="Bold"
+                                   FontFamily="Segoe UI" Margin="28,16,0,4"/>
 
-    <Button x:Name="BtnWishlist" Content="❤   Wishlist"
-            Style="{StaticResource SidebarButton}"
-            Click="BtnWishlist_Click"/>
-
-    <TextBlock Text="OTHER" Foreground="#636e72"
-               FontSize="10" FontWeight="Bold"
-               FontFamily="Segoe UI" Margin="28,16,0,4"/>
-
-    <Button x:Name="BtnStats" Content="📊   Statistics"
-            Style="{StaticResource SidebarButton}"
-            Click="BtnStats_Click"/>
-</StackPanel>
+                        <Button x:Name="BtnStats" Content="📊   Statistics"
+                                Style="{StaticResource SidebarButton}"
+                                Click="BtnStats_Click"/>
+                    </StackPanel>
+                </ScrollViewer>
 
                 <Button Grid.Row="2" x:Name="BtnSettings"
                         Content="⚙   Settings"
@@ -158,7 +162,8 @@
                                                             <TextBlock x:Name="placeholder"
                                                                        Text="Search your library..."
                                                                        Foreground="#636e72"
-                                                                       FontFamily="Segoe UI" FontSize="13"
+                                                                       FontFamily="Segoe UI"
+                                                                       FontSize="13"
                                                                        VerticalAlignment="Center"
                                                                        IsHitTestVisible="False"
                                                                        Visibility="Collapsed"/>
@@ -171,7 +176,8 @@
                                                                     <Condition Property="Text" Value=""/>
                                                                     <Condition Property="IsFocused" Value="False"/>
                                                                 </MultiTrigger.Conditions>
-                                                                <Setter TargetName="placeholder" Property="Visibility" Value="Visible"/>
+                                                                <Setter TargetName="placeholder"
+                                                                        Property="Visibility" Value="Visible"/>
                                                             </MultiTrigger>
                                                         </ControlTemplate.Triggers>
                                                     </ControlTemplate>
@@ -193,8 +199,10 @@
                                     Click="BtnGridView_Click">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
-                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="6">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
                                         </Border>
                                     </ControlTemplate>
                                 </Button.Template>
@@ -208,8 +216,10 @@
                                     Click="BtnListView_Click">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
-                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="6">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
                                         </Border>
                                     </ControlTemplate>
                                 </Button.Template>
@@ -218,8 +228,9 @@
                     </Grid>
                 </Border>
 
-                <!-- Page content — ContentControl instead of Frame -->
-                <ContentControl x:Name="MainContent" Grid.Row="1" Background="#1a1a2e"/>
+                <!-- Page content -->
+                <ContentControl x:Name="MainContent" Grid.Row="1"
+                                Background="#1a1a2e"/>
             </Grid>
         </Border>
     </Grid>

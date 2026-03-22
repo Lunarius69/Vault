@@ -1,11 +1,10 @@
-using System;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Vault.Database;
 using Vault.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace Vault.Services
 {
@@ -21,7 +20,6 @@ namespace Vault.Services
                 !Directory.Exists(_settings.GamesFolderPath))
                 return 0;
 
-            // Collect all game files in the folder
             string[] extensions = {
                 "*.exe", "*.iso", "*.bin", "*.chd", "*.nsp",
                 "*.xci", "*.nds", "*.gba", "*.n64", "*.z64", "*.pkg"
@@ -29,11 +27,9 @@ namespace Vault.Services
 
             var allFiles = new List<string>();
             foreach (string ext in extensions)
-            {
                 allFiles.AddRange(Directory.GetFiles(
                     _settings.GamesFolderPath, ext,
                     SearchOption.AllDirectories));
-            }
 
             using var db = new VaultContext();
             var games = await db.Games
@@ -46,11 +42,26 @@ namespace Vault.Services
             {
                 if (game.IsDownloaded) continue;
 
-                // Try to match by title similarity against file names
-                string titleClean = CleanTitle(game.Title);
+                string titleClean = CleanTitle(game.Title).ToLower();
+
                 var match = allFiles.FirstOrDefault(f =>
-                    CleanTitle(Path.GetFileNameWithoutExtension(f))
-                        .Contains(titleClean, StringComparison.OrdinalIgnoreCase));
+                {
+                    string fileClean = CleanTitle(
+                        Path.GetFileNameWithoutExtension(f)).ToLower();
+
+                    if (fileClean.Equals(titleClean))
+                        return true;
+
+                    if (titleClean.Length >= 6 &&
+                        fileClean.StartsWith(titleClean))
+                    {
+                        if (fileClean.Length == titleClean.Length ||
+                            !char.IsLetter(fileClean[titleClean.Length]))
+                            return true;
+                    }
+
+                    return false;
+                });
 
                 if (match == null) continue;
 
@@ -70,13 +81,14 @@ namespace Vault.Services
             return updated;
         }
 
+
+
         private static string CleanTitle(string title)
         {
-            // Remove common noise words and punctuation for better matching
             return title
                 .Replace(":", "").Replace("-", " ").Replace("_", " ")
                 .Replace("(", "").Replace(")", "")
-                .Replace("the ", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("the ", "", System.StringComparison.OrdinalIgnoreCase)
                 .Trim();
         }
     }

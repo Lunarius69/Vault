@@ -96,6 +96,12 @@
             Style="{StaticResource FilterButton}"
             Click="BtnScanRoms_Click"
             Margin="16,0,0,0"/>
+                    <TextBlock x:Name="TxtArtStatus"
+           Foreground="#636e72" FontSize="11"
+           FontFamily="Segoe UI"
+           VerticalAlignment="Center"
+           Margin="16,0,0,0"
+           Text=""/>
 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">

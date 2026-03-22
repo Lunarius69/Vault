@@ -163,14 +163,14 @@
                 <!-- LEFT COLUMN -->
                 <StackPanel Grid.Column="0" Margin="0,0,24,0">
 
-                    <!-- Continue watching / Play button -->
+                    <!-- Play button -->
                     <Button x:Name="BtnPlay"
                             Style="{StaticResource ActionBtn}"
                             Background="#e94560" Foreground="White"
                             Margin="0,0,0,12"
                             Click="BtnPlay_Click"/>
 
-                    <!-- Set folder path button -->
+                    <!-- Set folder button -->
                     <Button x:Name="BtnSetFolder"
                             Content="📁  Set Media Folder"
                             Style="{StaticResource ActionBtn}"
@@ -185,6 +185,21 @@
                             Background="#2d3561" Foreground="White"
                             Margin="0,0,0,24"
                             Click="BtnEditStatus_Click"/>
+
+                    <!-- Delete button -->
+                    <Button x:Name="BtnDelete"
+                            Content="🗑  Delete from Library"
+                            Style="{StaticResource ActionBtn}"
+                            Background="#d63031" Foreground="White"
+                            Margin="0,0,0,6"
+                            Click="BtnDelete_Click"/>
+
+                    <Button x:Name="BtnRefreshEpisodes"
+        Content="🔄  Refresh Episodes"
+        Style="{StaticResource ActionBtn}"
+        Background="#2d3561" Foreground="White"
+        Margin="0,0,0,6"
+        Click="BtnRefreshEpisodes_Click"/>
 
                     <!-- Status message -->
                     <TextBlock x:Name="TxtMessage" Foreground="#00b894"
@@ -272,7 +287,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Season tabs + episode grid (hidden for movies) -->
+                    <!-- Season tabs + episode grid -->
                     <Border x:Name="EpisodesSection" Background="#16213e"
                             CornerRadius="12" Padding="20"
                             Visibility="Collapsed">
@@ -285,7 +300,7 @@
                                             Orientation="Horizontal"/>
                             </ScrollViewer>
 
-                            <!-- Loading indicator for episodes -->
+                            <!-- Loading indicator -->
                             <TextBlock x:Name="TxtEpisodesLoading"
                                        Text="Loading episodes..."
                                        Foreground="#636e72" FontSize="12"
@@ -302,7 +317,6 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <!-- Episode card -->
                                         <Button Width="160" Height="130"
                                                 Margin="0,0,8,8"
                                                 Background="Transparent"
@@ -323,7 +337,7 @@
                                                                    Height="90"
                                                                    VerticalAlignment="Top"/>
 
-                                                            <!-- Placeholder thumbnail -->
+                                                            <!-- Placeholder -->
                                                             <Border Height="90"
                                                                     VerticalAlignment="Top"
                                                                     Background="#0f3460">
@@ -376,36 +390,36 @@
                                                             </Border>
 
                                                             <!-- Resume progress bar -->
-                                                            <Border x:Name="ResumeBar"
-                                                                    Height="3"
-                                                                    VerticalAlignment="Top"
-                                                                    Margin="0,87,0,0"
-                                                                    HorizontalAlignment="Left"
-                                                                    Background="#e94560"
-                                                                    Width="{Binding ResumeBarWidth}"/>
+                                                            <Border Height="3"
+        VerticalAlignment="Top"
+        Margin="0,87,0,0"
+        HorizontalAlignment="Left"
+        Background="#ff0000"
+        Width="{Binding ResumeBarWidth}"/>
 
-                                                            <!-- Episode title -->
-                                                            <StackPanel
-                                                                VerticalAlignment="Bottom"
-                                                                Margin="8,0,8,6"
-                                                                Height="40">
-                                                                <TextBlock
-                                                                    Text="{Binding EpisodeLabel}"
-                                                                    Foreground="#636e72"
-                                                                    FontSize="10"
-                                                                    FontFamily="Segoe UI"/>
-                                                                <TextBlock
-                                                                    Text="{Binding Title}"
-                                                                    Foreground="#ffffff"
-                                                                    FontSize="11"
-                                                                    FontFamily="Segoe UI"
-                                                                    TextTrimming="CharacterEllipsis"/>
-                                                            </StackPanel>
+                                                            <!-- Episode title area -->
+                                                            <Border VerticalAlignment="Bottom"
+                                                                    Background="#CC1a1a2e"
+                                                                    Height="44">
+                                                                <StackPanel Margin="8,4,8,6">
+                                                                    <TextBlock
+                                                                        Text="{Binding EpisodeLabel}"
+                                                                        Foreground="#636e72"
+                                                                        FontSize="10"
+                                                                        FontFamily="Segoe UI"/>
+                                                                    <TextBlock
+                                                                        Text="{Binding Title}"
+                                                                        Foreground="#ffffff"
+                                                                        FontSize="11"
+                                                                        FontFamily="Segoe UI"
+                                                                        TextTrimming="CharacterEllipsis"/>
+                                                                </StackPanel>
+                                                            </Border>
+
                                                         </Grid>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver"
-                                                                 Value="True">
+                                                        <Trigger Property="IsMouseOver" Value="True">
                                                             <Setter TargetName="CardBorder"
                                                                     Property="Background"
                                                                     Value="#2d3561"/>
@@ -426,7 +440,7 @@
 
                     <!-- Poster -->
                     <Border CornerRadius="10" ClipToBounds="True"
-                            Height="240" Margin="0,0,0,16">
+                            Height="450" Margin="0,0,0,16">
                         <Grid>
                             <Border x:Name="PlaceholderBg" Background="#0f3460"/>
                             <TextBlock x:Name="TxtPlaceholder"
@@ -438,7 +452,7 @@
                             <Image x:Name="ImgPoster" Stretch="UniformToFill"
                                    Visibility="Collapsed"/>
 
-                            <!-- Netflix progress bar on poster -->
+                            <!-- Progress bar on poster -->
                             <Grid VerticalAlignment="Bottom" Height="4">
                                 <Border Background="#2d3561"/>
                                 <Border x:Name="PosterProgressBar"
@@ -448,7 +462,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- Next episode to watch -->
+                    <!-- Next episode panel -->
                     <Border x:Name="NextEpisodePanel" Background="#16213e"
                             CornerRadius="12" Padding="16"
                             Margin="0,0,0,16" Visibility="Collapsed">
@@ -464,7 +478,8 @@
                                        Foreground="#b2bec3" FontSize="11"
                                        FontFamily="Segoe UI"
                                        TextWrapping="Wrap" Margin="0,4,0,0"
-                                       MaxHeight="60" TextTrimming="CharacterEllipsis"/>
+                                       MaxHeight="60"
+                                       TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>

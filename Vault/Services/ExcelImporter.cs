@@ -1,4 +1,5 @@
-﻿using OfficeOpenXml;
+﻿using Microsoft.EntityFrameworkCore;
+using OfficeOpenXml;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -20,15 +21,10 @@ namespace Vault.Services
     {
         private readonly VaultContext _db;
 
-        // Complete library sheets — treated as a single collection entry
         private static readonly HashSet<string> CompleteLibrarySheets = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Atari 2600", "NES", "SNES", "Nintendo 64",
-            "Sega Master System", "Sega Genesis", "Sega Saturn", "Sega Dreamcast",
-            "PlayStation 1", "Game Boy & GBC", "Game Boy Advance"
         };
 
-        // Sheets to skip entirely
         private static readonly HashSet<string> SkipSheets = new(StringComparer.OrdinalIgnoreCase)
         {
             "Summary", "SSD Games", "Storage Forecast", "Year-by-Year Timeline",
@@ -59,15 +55,13 @@ namespace Vault.Services
 
                 string platform = sheet.Name;
 
-                // Complete library sheets — one collection entry per platform
                 if (CompleteLibrarySheets.Contains(platform))
                 {
-                    if (_db.Games.Any(g => g.Platform == platform && g.LibraryType == "Complete Library"))
+                    if (_db.Games.Any(g => g.Platform == platform &&
+                        g.LibraryType == "Complete Library"))
                         continue;
 
-                    // Get size from first data row
-                    string sizeText = sheet.Cells[2, 4].Text.Trim(); // ROM Size column
-
+                    string sizeText = sheet.Cells[2, 4].Text.Trim();
                     var collectionGame = new Game
                     {
                         Title = $"{platform} — Complete Library",
@@ -83,7 +77,6 @@ namespace Vault.Services
                     continue;
                 }
 
-                // Normal sheets — find columns by header
                 int titleCol = -1, yearCol = -1, sizeCol = -1, statusCol = -1,
                     genreCol = -1, platformCol = -1, noteCol = -1;
 
@@ -107,12 +100,11 @@ namespace Vault.Services
                     string title = sheet.Cells[row, titleCol].Text.Trim();
                     if (string.IsNullOrWhiteSpace(title)) continue;
 
-                    // Skip junk rows
                     if (title.StartsWith("✅") || title.StartsWith("📥") ||
-                        title.StartsWith("Complete Library") || title.StartsWith("Download from"))
+                        title.StartsWith("Complete Library") ||
+                        title.StartsWith("Download from"))
                         continue;
 
-                    // For Live Service sheet, platform comes from its own column
                     string gamePlatform = platformCol > 0
                         ? sheet.Cells[row, platformCol].Text.Trim()
                         : platform;
@@ -121,16 +113,20 @@ namespace Vault.Services
                     if (_db.Games.Any(g => g.Title == title && g.Platform == gamePlatform))
                         continue;
 
-                    string rawStatus = statusCol > 0 ? sheet.Cells[row, statusCol].Text.Trim() : "";
+                    string rawStatus = statusCol > 0
+                        ? sheet.Cells[row, statusCol].Text.Trim() : "";
                     string status = NormalizeStatus(rawStatus);
 
                     var game = new Game
                     {
                         Title = title,
                         Platform = gamePlatform,
-                        Year = yearCol > 0 ? ParseYear(sheet.Cells[row, yearCol].Text) : null,
-                        FileSizeGB = sizeCol > 0 ? ParseSize(sheet.Cells[row, sizeCol].Text) : null,
-                        Genre = genreCol > 0 ? sheet.Cells[row, genreCol].Text.Trim() : null,
+                        Year = yearCol > 0
+                            ? ParseYear(sheet.Cells[row, yearCol].Text) : null,
+                        FileSizeGB = sizeCol > 0
+                            ? ParseSize(sheet.Cells[row, sizeCol].Text) : null,
+                        Genre = genreCol > 0
+                            ? sheet.Cells[row, genreCol].Text.Trim() : null,
                         Status = status,
                         LibraryType = "Owned",
                         IsWishlist = false,
@@ -165,16 +161,21 @@ namespace Vault.Services
                         if (string.IsNullOrWhiteSpace(title)) continue;
                         if (title.StartsWith("✅") || title.StartsWith("📥")) continue;
 
-                        string plt = platformCol > 0 ? wishlistSheet.Cells[row, platformCol].Text.Trim() : "Unknown";
+                        string plt = platformCol > 0
+                            ? wishlistSheet.Cells[row, platformCol].Text.Trim()
+                            : "Unknown";
 
-                        if (_db.Games.Any(g => g.Title == title && g.IsWishlist)) continue;
+                        if (_db.Games.Any(g => g.Title == title && g.IsWishlist))
+                            continue;
 
                         _db.Games.Add(new Game
                         {
                             Title = title,
                             Platform = plt,
-                            Year = yearCol > 0 ? ParseYear(wishlistSheet.Cells[row, yearCol].Text) : null,
-                            FileSizeGB = sizeCol > 0 ? ParseSize(wishlistSheet.Cells[row, sizeCol].Text) : null,
+                            Year = yearCol > 0
+                                ? ParseYear(wishlistSheet.Cells[row, yearCol].Text) : null,
+                            FileSizeGB = sizeCol > 0
+                                ? ParseSize(wishlistSheet.Cells[row, sizeCol].Text) : null,
                             Status = "Wishlist",
                             LibraryType = "Wishlist",
                             IsWishlist = true,
@@ -198,6 +199,11 @@ namespace Vault.Services
                 return result;
             }
 
+            // Wipe existing media before reimport
+            var existing = await _db.MediaItems.ToListAsync();
+            _db.MediaItems.RemoveRange(existing);
+            await _db.SaveChangesAsync();
+
             using var package = new ExcelPackage(new FileInfo(filePath));
 
             foreach (var sheet in package.Workbook.Worksheets)
@@ -206,9 +212,9 @@ namespace Vault.Services
                 if (sheet.Dimension == null) continue;
 
                 string mediaType = DetectMediaType(sheet.Name);
-                bool isSeries = mediaType == "Show" || mediaType == "Anime" || mediaType == "AnimatedSeries";
 
-                int titleCol = -1, yearCol = -1, sizeCol = -1, episodesCol = -1, seasonsCol = -1;
+                int titleCol = -1, yearCol = -1, sizeCol = -1,
+                    episodesCol = -1, seasonsCol = -1;
                 for (int c = 1; c <= sheet.Dimension.Columns; c++)
                 {
                     string h = sheet.Cells[1, c].Text.Trim().ToLower();
@@ -226,17 +232,29 @@ namespace Vault.Services
                     string rawTitle = sheet.Cells[row, titleCol].Text.Trim();
                     if (string.IsNullOrWhiteSpace(rawTitle)) continue;
 
-                    var (cleanTitle, note) = CleanMediaTitle(rawTitle);
+                    // Title is already clean in merged Excel — no stripping needed
+                    string cleanTitle = rawTitle.Trim();
 
-                    if (_db.MediaItems.Any(m => m.Title == cleanTitle && m.MediaType == mediaType))
+                    if (_db.MediaItems.Any(m => m.Title == cleanTitle &&
+                        m.MediaType == mediaType))
                         continue;
+
+                    int totalEpisodes = 0;
+                    if (episodesCol > 0)
+                        totalEpisodes = ParseInt(sheet.Cells[row, episodesCol].Text) ?? 0;
+
+                    int? totalSeasons = null;
+                    if (seasonsCol > 0)
+                        totalSeasons = ParseInt(sheet.Cells[row, seasonsCol].Text);
 
                     _db.MediaItems.Add(new MediaItem
                     {
                         Title = cleanTitle,
                         MediaType = mediaType,
-                        Year = yearCol > 0 ? ParseYear(sheet.Cells[row, yearCol].Text) : null,
-                        TotalEpisodes = episodesCol > 0 ? (ParseInt(sheet.Cells[row, episodesCol].Text) ?? 0) : 0,
+                        Year = yearCol > 0
+                            ? ParseYear(sheet.Cells[row, yearCol].Text) : null,
+                        TotalEpisodes = totalEpisodes,
+                        TotalSeasons = totalSeasons,
                         WatchStatus = "Not Started",
                         TmdbId = 0
                     });
@@ -247,8 +265,6 @@ namespace Vault.Services
             await _db.SaveChangesAsync();
             return result;
         }
-
-        // ── Helpers ──────────────────────────────────────────────────────────
 
         private static string NormalizeStatus(string raw)
         {
@@ -275,33 +291,6 @@ namespace Vault.Services
             return "Show";
         }
 
-        private static (string title, string? note) CleanMediaTitle(string raw)
-        {
-            string note = null;
-            string title = raw;
-
-            int dashIdx = title.IndexOf(" \u2013 ");
-            if (dashIdx == -1) dashIdx = title.IndexOf(" - ");
-            if (dashIdx > 0)
-            {
-                note = title.Substring(dashIdx).Trim(' ', '-', '\u2013').Trim();
-                title = title.Substring(0, dashIdx).Trim();
-            }
-
-            int parenIdx = title.IndexOf(" (");
-            if (parenIdx > 0)
-            {
-                string inner = title.Substring(parenIdx + 2).TrimEnd(')');
-                if (inner.Length > 4 && !inner.All(char.IsDigit))
-                {
-                    note = string.IsNullOrEmpty(note) ? inner : note + " " + inner;
-                    title = title.Substring(0, parenIdx).Trim();
-                }
-            }
-
-            return (title.Trim(), string.IsNullOrEmpty(note) ? null : note.Trim());
-        }
-
         private static int? ParseYear(string text)
         {
             if (int.TryParse(text.Trim(), out int y) && y > 1900 && y < 2100) return y;
@@ -312,8 +301,10 @@ namespace Vault.Services
         {
             if (string.IsNullOrWhiteSpace(text)) return null;
             text = text.Replace(",", ".").Replace("~", "").Trim().ToUpper();
-            double mult = text.Contains("TB") ? 1024 : text.Contains("MB") ? 1.0 / 1024 : 1;
-            string num = System.Text.RegularExpressions.Regex.Match(text, @"[\d.]+").Value;
+            double mult = text.Contains("TB") ? 1024
+                : text.Contains("MB") ? 1.0 / 1024 : 1;
+            string num = System.Text.RegularExpressions.Regex
+                .Match(text, @"[\d.]+").Value;
             if (double.TryParse(num, System.Globalization.NumberStyles.Any,
                 System.Globalization.CultureInfo.InvariantCulture, out double val))
                 return Math.Round(val * mult, 2);
