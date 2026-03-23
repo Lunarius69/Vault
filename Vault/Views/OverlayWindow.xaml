@@ -39,7 +39,7 @@
                     <GradientStop Color="#CC000000" Offset="1"/>
                 </LinearGradientBrush>
             </Grid.Background>
-            <StackPanel Margin="20,12,20,16">
+            <StackPanel Margin="20,12,20,0">
 
                 <!-- Seek bar -->
                 <Grid x:Name="SeekBarGrid" Height="10" Margin="0,0,0,10"

@@ -2,10 +2,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 using Vault.Database;
 using Vault.Models;
 using Vault.Services;
@@ -46,6 +48,49 @@ namespace Vault.Views
             ApplyFilters();
         }
 
+        // ------------------------------------------------------------------ //
+        //  Async image loading — loads bitmaps off the UI thread
+        // ------------------------------------------------------------------ //
+        private static async Task LoadPostersAsync(List<MediaTileViewModel> tiles)
+        {
+            // Process in batches so UI stays responsive
+            const int BatchSize = 20;
+            for (int i = 0; i < tiles.Count; i += BatchSize)
+            {
+                var batch = tiles.Skip(i).Take(BatchSize).ToList();
+                var tasks = batch.Select(async tile =>
+                {
+                    if (tile.HasPoster || string.IsNullOrEmpty(tile.PosterPath)) return;
+                    if (!File.Exists(tile.PosterPath)) return;
+
+                    try
+                    {
+                        // Load bitmap on background thread
+                        var bmp = await Task.Run(() =>
+                        {
+                            var b = new BitmapImage();
+                            b.BeginInit();
+                            b.UriSource = new Uri(tile.PosterPath!);
+                            b.CacheOption = BitmapCacheOption.OnLoad;
+                            b.DecodePixelWidth = 150; // only decode at display size
+                            b.EndInit();
+                            b.Freeze(); // must freeze to use across threads
+                            return b;
+                        });
+
+                        // Update on UI thread
+                        tile.LoadedBitmap = bmp;
+                    }
+                    catch { }
+                });
+
+                await Task.WhenAll(tasks);
+
+                // Yield to UI between batches
+                await Task.Delay(10);
+            }
+        }
+
         private async Task FetchMissingPostersAsync(List<MediaTileViewModel> tiles)
         {
             if (!new TmdbService(_settings).IsConfigured) return;
@@ -73,7 +118,6 @@ namespace Vault.Views
                                         tile.MediaType != "AnimeMovie" &&
                                         tile.MediaType != "AnimatedMovie";
 
-                        // Search TMDB if no ID yet
                         int tmdbId = tile.Item.TmdbId;
                         if (tmdbId == 0)
                         {
@@ -83,11 +127,9 @@ namespace Vault.Views
                             tmdbId = found.Value;
                         }
 
-                        // Fetch full details
                         var details = await tmdb.FetchDetailsAsync(tmdbId, isSeries);
                         if (details == null) return;
 
-                        // Download poster — use season-specific for series
                         string? posterPath = null;
                         if (isSeries)
                         {
@@ -96,19 +138,39 @@ namespace Vault.Views
                                 tile.Id, tmdbId, seasonNum);
                         }
 
-                        // Fall back to show-level poster if season poster not found
                         if (posterPath == null && !string.IsNullOrEmpty(details.PosterPath))
                             posterPath = await tmdb.DownloadPosterAsync(
                                 tile.Id, details.PosterPath);
 
-                        // Download banner
                         string? bannerPath = null;
                         if (!string.IsNullOrEmpty(details.BackdropPath))
                             bannerPath = await tmdb.DownloadBannerAsync(
                                 tile.Id, details.BackdropPath);
 
                         if (posterPath != null)
-                            Dispatcher.Invoke(() => tile.PosterPath = posterPath);
+                        {
+                            // Load async then update tile
+                            try
+                            {
+                                var bmp = await Task.Run(() =>
+                                {
+                                    var b = new BitmapImage();
+                                    b.BeginInit();
+                                    b.UriSource = new Uri(posterPath);
+                                    b.CacheOption = BitmapCacheOption.OnLoad;
+                                    b.DecodePixelWidth = 150;
+                                    b.EndInit();
+                                    b.Freeze();
+                                    return b;
+                                });
+                                Dispatcher.Invoke(() =>
+                                {
+                                    tile.PosterPath = posterPath;
+                                    tile.LoadedBitmap = bmp;
+                                });
+                            }
+                            catch { }
+                        }
 
                         lock (dbLock)
                         {
@@ -118,16 +180,11 @@ namespace Vault.Views
                                 dbItem.TmdbId = tmdbId;
                                 if (posterPath != null) dbItem.PosterPath = posterPath;
                                 if (bannerPath != null) dbItem.BannerPath = bannerPath;
-                                if (details.Description != null)
-                                    dbItem.Description = details.Description;
-                                if (details.Rating.HasValue)
-                                    dbItem.TmdbRating = details.Rating;
-                                if (details.Year.HasValue && dbItem.Year == null)
-                                    dbItem.Year = details.Year;
-                                if (details.Genre != null && dbItem.Genre == null)
-                                    dbItem.Genre = details.Genre;
-                                if (details.TotalSeasons.HasValue)
-                                    dbItem.TotalSeasons = details.TotalSeasons;
+                                if (details.Description != null) dbItem.Description = details.Description;
+                                if (details.Rating.HasValue) dbItem.TmdbRating = details.Rating;
+                                if (details.Year.HasValue && dbItem.Year == null) dbItem.Year = details.Year;
+                                if (details.Genre != null && dbItem.Genre == null) dbItem.Genre = details.Genre;
+                                if (details.TotalSeasons.HasValue) dbItem.TotalSeasons = details.TotalSeasons;
                                 if (details.TotalEpisodes.HasValue && dbItem.TotalEpisodes == 0)
                                     dbItem.TotalEpisodes = details.TotalEpisodes.Value;
                                 anyUpdated = true;
@@ -139,8 +196,7 @@ namespace Vault.Views
                 });
 
                 await Task.WhenAll(tasks);
-                if (anyUpdated)
-                    await db.SaveChangesAsync();
+                if (anyUpdated) await db.SaveChangesAsync();
             }
             finally
             {
@@ -148,6 +204,9 @@ namespace Vault.Views
             }
         }
 
+        // ------------------------------------------------------------------ //
+        //  Filters / sorting
+        // ------------------------------------------------------------------ //
         private void FilterBtn_Click(object sender, RoutedEventArgs e)
         {
             _currentStatus = (sender as Button)?.Tag?.ToString() ?? "All";
@@ -170,9 +229,7 @@ namespace Vault.Views
         }
 
         private void SortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            ApplyFilters();
-        }
+            => ApplyFilters();
 
         private void ApplyFilters()
         {
@@ -200,35 +257,54 @@ namespace Vault.Views
             if (TxtItemCount != null)
                 TxtItemCount.Text = $"{list.Count} titles";
 
-            var existingPosters = _tiles.ToDictionary(t => t.Id, t => t.PosterPath);
+            var existingBitmaps = _tiles.ToDictionary(t => t.Id, t => t.LoadedBitmap);
 
             _tiles = new ObservableCollection<MediaTileViewModel>(
                 list.Select(m =>
                 {
                     var tile = new MediaTileViewModel(m);
-                    if (existingPosters.TryGetValue(m.Id, out string? cached)
-                        && cached != null)
-                        tile.PosterPath = cached;
+                    // Reuse already-loaded bitmaps so we don't reload on filter change
+                    if (existingBitmaps.TryGetValue(m.Id, out var bmp) && bmp != null)
+                        tile.LoadedBitmap = bmp;
                     return tile;
                 }));
 
             MediaItemsControl.ItemsSource = _tiles;
 
+            // Load posters async for visible tiles first
+            var tilesNeedingLoad = _tiles
+                .Where(t => t.LoadedBitmap == null && t.HasPoster)
+                .ToList();
+
+            if (tilesNeedingLoad.Count > 0)
+                _ = LoadPostersAsync(tilesNeedingLoad);
+
+            // Fetch from TMDB for any missing posters
             var stillMissing = _tiles.Where(t => !t.HasPoster).ToList();
             if (stillMissing.Count > 0)
                 _ = FetchMissingPostersAsync(stillMissing);
         }
 
-        private void MediaTile_Click(object sender, RoutedEventArgs e)
+        // ------------------------------------------------------------------ //
+        //  Selection
+        // ------------------------------------------------------------------ //
+        private void MediaTile_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (sender is Button btn && btn.DataContext is MediaTileViewModel tile)
+            if (MediaItemsControl.SelectedItem is MediaTileViewModel tile)
+            {
+                MediaItemsControl.SelectedItem = null; // clear selection highlight
                 ItemSelected?.Invoke(this, tile.Item);
+            }
         }
 
+        // ------------------------------------------------------------------ //
+        //  Search
+        // ------------------------------------------------------------------ //
         public void Search(string query)
         {
             if (string.IsNullOrWhiteSpace(query)) { ApplyFilters(); return; }
             query = query.ToLower();
+
             var list = _allItems
                 .Where(m => m.Title.ToLower().Contains(query) ||
                             (m.Genre != null && m.Genre.ToLower().Contains(query)))
@@ -237,18 +313,23 @@ namespace Vault.Views
             if (TxtItemCount != null)
                 TxtItemCount.Text = $"{list.Count} titles";
 
-            var existingPosters = _tiles.ToDictionary(t => t.Id, t => t.PosterPath);
+            var existingBitmaps = _tiles.ToDictionary(t => t.Id, t => t.LoadedBitmap);
             _tiles = new ObservableCollection<MediaTileViewModel>(
                 list.Select(m =>
                 {
                     var tile = new MediaTileViewModel(m);
-                    if (existingPosters.TryGetValue(m.Id, out string? cached)
-                        && cached != null)
-                        tile.PosterPath = cached;
+                    if (existingBitmaps.TryGetValue(m.Id, out var bmp) && bmp != null)
+                        tile.LoadedBitmap = bmp;
                     return tile;
                 }));
 
             MediaItemsControl.ItemsSource = _tiles;
+
+            var tilesNeedingLoad = _tiles
+                .Where(t => t.LoadedBitmap == null && t.HasPoster)
+                .ToList();
+            if (tilesNeedingLoad.Count > 0)
+                _ = LoadPostersAsync(tilesNeedingLoad);
         }
     }
 }

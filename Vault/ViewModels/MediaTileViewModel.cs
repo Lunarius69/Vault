@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.IO;
+using System.Windows.Media.Imaging;
 using Vault.Models;
 
 namespace Vault.ViewModels
@@ -8,11 +9,30 @@ namespace Vault.ViewModels
     {
         private MediaItem _item;
         private string? _posterPath;
+        private BitmapImage? _loadedBitmap;
 
         public MediaTileViewModel(MediaItem item)
         {
             _item = item;
             _posterPath = item.PosterPath;
+
+            // Load existing local posters synchronously — they're already on disk
+            // so this is fast and avoids the blank tile flash
+            if (!string.IsNullOrEmpty(_posterPath) && File.Exists(_posterPath))
+            {
+                try
+                {
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.UriSource = new Uri(_posterPath);
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.DecodePixelWidth = 150;
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    _loadedBitmap = bmp;
+                }
+                catch { }
+            }
         }
 
         public int Id => _item.Id;
@@ -34,10 +54,25 @@ namespace Vault.ViewModels
             }
         }
 
-        public bool HasPoster =>
-            !string.IsNullOrEmpty(_posterPath) && File.Exists(_posterPath);
+        /// <summary>
+        /// Pre-loaded bitmap set by async loader — bind Image.Source to this
+        /// instead of PosterPath to avoid synchronous disk I/O on the UI thread.
+        /// </summary>
+        public BitmapImage? LoadedBitmap
+        {
+            get => _loadedBitmap;
+            set
+            {
+                _loadedBitmap = value;
+                OnPropertyChanged(nameof(LoadedBitmap));
+                OnPropertyChanged(nameof(HasPoster));
+            }
+        }
 
-        // Progress percentage for Netflix-style bar (0-100)
+        public bool HasPoster =>
+            _loadedBitmap != null ||
+            (!string.IsNullOrEmpty(_posterPath) && File.Exists(_posterPath));
+
         public double ProgressPercent
         {
             get

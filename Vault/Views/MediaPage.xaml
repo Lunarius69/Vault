@@ -59,6 +59,20 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- ListBox removes default selection highlight -->
+        <Style x:Key="TileListBoxItem" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -77,8 +91,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal"
-                            VerticalAlignment="Center">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="FILTER:" Foreground="#636e72" FontSize="11"
                                FontFamily="Segoe UI" FontWeight="Bold"
                                VerticalAlignment="Center" Margin="0,0,12,0"/>
@@ -96,8 +109,7 @@
                             Click="FilterBtn_Click" Tag="Not Started"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal"
-                            VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="SORT:" Foreground="#636e72" FontSize="11"
                                FontFamily="Segoe UI" FontWeight="Bold"
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
@@ -105,12 +117,9 @@
                               FontFamily="Segoe UI" FontSize="12"
                               SelectionChanged="SortCombo_SelectionChanged">
                         <ComboBox.Resources>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
-                                             Color="#16213e"/>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
-                                             Color="#b2bec3"/>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}"
-                                             Color="#16213e"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#16213e"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#b2bec3"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#16213e"/>
                             <Style TargetType="ComboBoxItem">
                                 <Setter Property="Background" Value="#0d1117"/>
                                 <Setter Property="Foreground" Value="#b2bec3"/>
@@ -120,20 +129,17 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ComboBoxItem">
-                                            <Border x:Name="Bd"
-                                                    Background="{TemplateBinding Background}"
+                                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
                                                     Padding="{TemplateBinding Padding}">
                                                 <ContentPresenter/>
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsHighlighted" Value="True">
-                                                    <Setter TargetName="Bd" Property="Background"
-                                                            Value="#e94560"/>
+                                                    <Setter TargetName="Bd" Property="Background" Value="#e94560"/>
                                                     <Setter Property="Foreground" Value="#ffffff"/>
                                                 </Trigger>
                                                 <Trigger Property="IsSelected" Value="True">
-                                                    <Setter TargetName="Bd" Property="Background"
-                                                            Value="#2d3561"/>
+                                                    <Setter TargetName="Bd" Property="Background" Value="#2d3561"/>
                                                     <Setter Property="Foreground" Value="#ffffff"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
@@ -146,8 +152,7 @@
                             <ControlTemplate TargetType="ComboBox">
                                 <Grid>
                                     <Border x:Name="MainBorder" Background="#16213e"
-                                            BorderBrush="#2d3561" BorderThickness="1"
-                                            CornerRadius="6">
+                                            BorderBrush="#2d3561" BorderThickness="1" CornerRadius="6">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -166,8 +171,7 @@
                                                        FontSize="10"/>
                                             <ToggleButton Grid.ColumnSpan="2"
                                                 IsChecked="{Binding IsDropDownOpen,
-                                                RelativeSource={RelativeSource TemplatedParent},
-                                                Mode=TwoWay}"
+                                                RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
                                                 Focusable="False" Opacity="0">
                                                 <ToggleButton.Template>
                                                     <ControlTemplate TargetType="ToggleButton">
@@ -190,16 +194,12 @@
                                 </Grid>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="MainBorder" Property="Background"
-                                                Value="#e94560"/>
-                                        <Setter TargetName="MainBorder" Property="BorderBrush"
-                                                Value="#e94560"/>
+                                        <Setter TargetName="MainBorder" Property="Background" Value="#e94560"/>
+                                        <Setter TargetName="MainBorder" Property="BorderBrush" Value="#e94560"/>
                                     </Trigger>
                                     <Trigger Property="IsDropDownOpen" Value="True">
-                                        <Setter TargetName="MainBorder" Property="Background"
-                                                Value="#e94560"/>
-                                        <Setter TargetName="MainBorder" Property="BorderBrush"
-                                                Value="#e94560"/>
+                                        <Setter TargetName="MainBorder" Property="Background" Value="#e94560"/>
+                                        <Setter TargetName="MainBorder" Property="BorderBrush" Value="#e94560"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
@@ -226,120 +226,115 @@
                        Foreground="#636e72" FontSize="12"
                        FontFamily="Segoe UI" Margin="16,8"/>
 
-            <ScrollViewer Grid.Row="1" x:Name="GridScrollViewer"
-                          VerticalScrollBarVisibility="Auto">
-                <ItemsControl x:Name="MediaItemsControl">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Button Style="{StaticResource TileButton}"
-                                    Click="MediaTile_Click"
-                                    Width="150" Height="235" Margin="6">
-                                <Border CornerRadius="8" ClipToBounds="True"
-                                        Background="#16213e">
-                                    <Grid>
+            <!-- Virtualized ListBox with WrapPanel -->
+            <ListBox Grid.Row="1"
+                     x:Name="MediaItemsControl"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     VirtualizingPanel.ScrollUnit="Pixel"
+                     ItemContainerStyle="{StaticResource TileListBoxItem}"
+                     SelectionMode="Single"
+                     SelectionChanged="MediaTile_SelectionChanged">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingWrapPanel
+                            xmlns="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
+                            ItemSize="162,247"
+                            SpacingMode="None"
+                            StretchItems="False"/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Button Style="{StaticResource TileButton}"
+                                Width="150" Height="235" Margin="6">
+                            <Border CornerRadius="8" ClipToBounds="True"
+                                    Background="#16213e">
+                                <Grid>
+                                    <!-- Async poster image -->
+                                    <Image Stretch="UniformToFill"
+       RenderOptions.BitmapScalingMode="HighQuality"
+       Source="{Binding LoadedBitmap}"/>
+                                    <!-- Placeholder when no poster -->
+                                    <Border Background="#0f3460">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasPoster}" Value="False">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding Title}"
+                                                   Foreground="#b2bec3"
+                                                   FontFamily="Segoe UI"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Margin="8"/>
+                                    </Border>
 
-                                        <!-- Poster image -->
-                                        <Image Source="{Binding PosterPath}"
-                                               Stretch="UniformToFill"/>
+                                    <!-- Gradient overlay -->
+                                    <Border VerticalAlignment="Bottom" Height="80">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="Transparent" Offset="0"/>
+                                                <GradientStop Color="#E616213e" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
 
-                                        <!-- Placeholder when no poster -->
-                                        <Border Background="#0f3460">
+                                    <!-- Episode info + status -->
+                                    <StackPanel VerticalAlignment="Bottom" Margin="8,0,8,20">
+                                        <TextBlock Text="{Binding EpisodeInfo}"
+                                                   Foreground="#b2bec3" FontSize="10"
+                                                   FontFamily="Segoe UI" Margin="0,0,0,2"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="7" Height="7"
+                                                     Margin="0,0,4,0"
+                                                     VerticalAlignment="Center"
+                                                     Fill="{Binding StatusColor}"/>
+                                            <TextBlock Text="{Binding WatchStatus}"
+                                                       Foreground="#b2bec3" FontSize="10"
+                                                       FontFamily="Segoe UI"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Progress bar -->
+                                    <Grid VerticalAlignment="Bottom" Height="4">
+                                        <Border Background="#2d3561"/>
+                                        <Border Background="#e94560"
+                                                HorizontalAlignment="Left">
                                             <Border.Style>
                                                 <Style TargetType="Border">
-                                                    <Setter Property="Visibility"
-                                                            Value="Collapsed"/>
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding HasPoster}"
-                                                                     Value="False">
-                                                            <Setter Property="Visibility"
-                                                                    Value="Visible"/>
+                                                        <DataTrigger Binding="{Binding WatchStatus}" Value="Watching">
+                                                            <Setter Property="Visibility" Value="Visible"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <TextBlock Text="{Binding Title}"
-                                                       Foreground="#b2bec3"
-                                                       FontFamily="Segoe UI"
-                                                       FontSize="12"
-                                                       TextWrapping="Wrap"
-                                                       TextAlignment="Center"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       Margin="8"/>
+                                            <Border.Width>
+                                                <Binding Path="ProgressPercent"/>
+                                            </Border.Width>
                                         </Border>
-
-                                        <!-- Gradient overlay -->
-                                        <Border VerticalAlignment="Bottom" Height="80">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0"
-                                                                     EndPoint="0,1">
-                                                    <GradientStop Color="Transparent"
-                                                                  Offset="0"/>
-                                                    <GradientStop Color="#E616213e"
-                                                                  Offset="1"/>
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                        </Border>
-
-                                        <!-- Episode info + status -->
-                                        <StackPanel VerticalAlignment="Bottom"
-                                                    Margin="8,0,8,20">
-                                            <TextBlock Text="{Binding EpisodeInfo}"
-                                                       Foreground="#b2bec3"
-                                                       FontSize="10"
-                                                       FontFamily="Segoe UI"
-                                                       Margin="0,0,0,2"/>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Ellipse Width="7" Height="7"
-                                                         Margin="0,0,4,0"
-                                                         VerticalAlignment="Center"
-                                                         Fill="{Binding StatusColor}"/>
-                                                <TextBlock Text="{Binding WatchStatus}"
-                                                           Foreground="#b2bec3"
-                                                           FontSize="10"
-                                                           FontFamily="Segoe UI"
-                                                           VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </StackPanel>
-
-                                        <!-- Netflix-style progress bar -->
-                                        <Grid VerticalAlignment="Bottom" Height="4">
-                                            <Border Background="#2d3561"/>
-                                            <Border Background="#e94560"
-                                                    HorizontalAlignment="Left"
-                                                    x:Name="ProgressFill">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Visibility"
-                                                                Value="Collapsed"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger
-                                                                Binding="{Binding WatchStatus}"
-                                                                Value="Watching">
-                                                                <Setter Property="Visibility"
-                                                                        Value="Visible"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
-                                                <Border.Width>
-                                                    <Binding Path="ProgressPercent"/>
-                                                </Border.Width>
-                                            </Border>
-                                        </Grid>
-
                                     </Grid>
-                                </Border>
-                            </Button>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                                </Grid>
+                            </Border>
+                        </Button>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
         </Grid>
 
         <!-- Loading overlay -->
@@ -349,8 +344,7 @@
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                 <TextBlock Text="Loading your library..."
                            Foreground="#ffffff" FontSize="18"
-                           FontFamily="Segoe UI"
-                           HorizontalAlignment="Center"/>
+                           FontFamily="Segoe UI" HorizontalAlignment="Center"/>
                 <ProgressBar IsIndeterminate="True" Width="200" Height="4"
                              Margin="0,16,0,0" Foreground="#e94560"
                              Background="#2d3561"/>

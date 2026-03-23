@@ -340,7 +340,7 @@ namespace Vault.Views
         {
             try
             {
-                if (_player == null) return;
+                if (_player == null || _player.Media == null) return;
                 long len = _player.Length;
                 if (len <= 0) return;
                 var ep = CurrentEpisode;
@@ -362,14 +362,11 @@ namespace Vault.Views
         private void HideTimer_Tick(object? sender, EventArgs e)
         {
             _hideTimer.Stop();
-            // Uncomment to enable auto-hide once mouse tracking is confirmed working:
-            // if (_player?.IsPlaying != true) return;
-            // _overlay?.ShowControls(false);
+            if (_player?.IsPlaying != true) return;
+            _overlay?.ShowControls(false);
         }
 
-        // ------------------------------------------------------------------ //
-        //  Actions
-        // ------------------------------------------------------------------ //
+        
         private void TogglePlayPause()
         {
             try
