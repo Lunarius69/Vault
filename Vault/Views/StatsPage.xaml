@@ -3,187 +3,146 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#1a1a2e">
 
-    <UserControl.Resources>
-        <Style x:Key="StatCard" TargetType="Border">
-            <Setter Property="Background" Value="#16213e"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="20"/>
-        </Style>
-        <Style x:Key="StatLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#636e72"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-        </Style>
-        <Style x:Key="StatValue" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#ffffff"/>
-            <Setter Property="FontSize" Value="28"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-        </Style>
-        <Style x:Key="StatSubValue" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#b2bec3"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="Margin" Value="0,2,0,0"/>
-        </Style>
-    </UserControl.Resources>
-
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32,24,32,32">
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-            <!-- Header -->
-            <TextBlock Text="Library Statistics"
-                       Foreground="#ffffff" FontSize="24"
-                       FontWeight="Bold" FontFamily="Segoe UI"
-                       Margin="0,0,0,24"/>
+            <!-- Games Statistics -->
+            <Border Grid.Row="0" Background="#16213e" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="Games Statistics" FontSize="18" FontWeight="Bold" 
+                               Foreground="#e94560" Margin="0,0,0,16"/>
 
-            <!-- Top stat cards row -->
-            <Grid Margin="0,0,0,16">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                <!-- Total Games -->
-                <Border Grid.Column="0" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="TOTAL GAMES" Style="{StaticResource StatLabel}"/>
-                        <TextBlock x:Name="TxtTotalGames" Style="{StaticResource StatValue}"/>
-                        <TextBlock x:Name="TxtTotalGamesSub" Style="{StaticResource StatSubValue}"/>
-                    </StackPanel>
-                </Border>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Total Games" Foreground="#636e72" FontSize="12"/>
+                            <TextBlock x:Name="TxtTotalGames" Foreground="#ffffff" FontSize="24" 
+                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                        </StackPanel>
 
-                <!-- Total Playtime -->
-                <Border Grid.Column="2" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="TOTAL PLAYTIME" Style="{StaticResource StatLabel}"/>
-                        <TextBlock x:Name="TxtTotalPlaytime" Style="{StaticResource StatValue}"/>
-                        <TextBlock x:Name="TxtTotalPlaytimeSub" Style="{StaticResource StatSubValue}"/>
-                    </StackPanel>
-                </Border>
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="Playing" Foreground="#636e72" FontSize="12"/>
+                            <TextBlock x:Name="TxtPlayingGames" Foreground="#00b894" FontSize="24" 
+                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                        </StackPanel>
 
-                <!-- Total Media -->
-                <Border Grid.Column="4" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="MEDIA WATCHED" Style="{StaticResource StatLabel}"/>
-                        <TextBlock x:Name="TxtTotalMedia" Style="{StaticResource StatValue}"/>
-                        <TextBlock x:Name="TxtTotalMediaSub" Style="{StaticResource StatSubValue}"/>
-                    </StackPanel>
-                </Border>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Completed" Foreground="#636e72" FontSize="12"/>
+                            <TextBlock x:Name="TxtCompletedGames" Foreground="#0984e3" FontSize="24" 
+                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Grid>
 
-                <!-- Library Size -->
-                <Border Grid.Column="6" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="LIBRARY SIZE" Style="{StaticResource StatLabel}"/>
-                        <TextBlock x:Name="TxtLibrarySize" Style="{StaticResource StatValue}"/>
-                        <TextBlock x:Name="TxtLibrarySizeSub" Style="{StaticResource StatSubValue}"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-            <!-- Second row -->
-            <Grid Margin="0,0,0,16">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Not Started" Foreground="#636e72" FontSize="12"/>
+                            <TextBlock x:Name="TxtNotStartedGames" Foreground="#636e72" FontSize="24" 
+                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                        </StackPanel>
 
-                <!-- Watch time estimate -->
-                <Border Grid.Column="0" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="EST. WATCH TIME" Style="{StaticResource StatLabel}"/>
-                        <TextBlock x:Name="TxtWatchTime" Style="{StaticResource StatValue}"/>
-                        <TextBlock x:Name="TxtWatchTimeSub" Style="{StaticResource StatSubValue}"/>
-                    </StackPanel>
-                </Border>
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="Downloaded" Foreground="#636e72" FontSize="12"/>
+                            <TextBlock x:Name="TxtDownloadedGames" Foreground="#e94560" FontSize="24" 
+                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                        </StackPanel>
 
-                <!-- Shows watched -->
-                <Border Grid.Column="2" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="SHOWS / ANIME" Style="{StaticResource StatLabel}"/>
-                        <TextBlock x:Name="TxtShowsWatched" Style="{StaticResource StatValue}"/>
-                        <TextBlock x:Name="TxtShowsWatchedSub" Style="{StaticResource StatSubValue}"/>
-                    </StackPanel>
-                </Border>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Total Playtime" Foreground="#636e72" FontSize="12"/>
+                            <TextBlock x:Name="TxtTotalPlaytime" Foreground="#ffffff" FontSize="18" 
+                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
 
-                <!-- Movies watched -->
-                <Border Grid.Column="4" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="MOVIES WATCHED" Style="{StaticResource StatLabel}"/>
-                        <TextBlock x:Name="TxtMoviesWatched" Style="{StaticResource StatValue}"/>
-                        <TextBlock x:Name="TxtMoviesWatchedSub" Style="{StaticResource StatSubValue}"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
+            <!-- Platform Distribution -->
+            <Border Grid.Row="1" Background="#16213e" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="Platform Distribution" FontSize="18" FontWeight="Bold" 
+                               Foreground="#e94560" Margin="0,0,0,16"/>
+                    <ListBox x:Name="PlatformListBox" Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Platform}" 
+                                               Foreground="#b2bec3"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Count}" 
+                                               Foreground="#e94560" FontWeight="Bold"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+            </Border>
 
-            <!-- Middle row: Games by status + Games by platform -->
-            <Grid Margin="0,0,0,16">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="16"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+            <!-- Media Statistics -->
+            <Border Grid.Row="2" Background="#16213e" CornerRadius="8" Padding="16">
+                <StackPanel>
+                    <TextBlock Text="Media Statistics" FontSize="18" FontWeight="Bold" 
+                               Foreground="#e94560" Margin="0,0,0,16"/>
 
-                <!-- Games by status -->
-                <Border Grid.Column="0" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="GAMES BY STATUS"
-                                   Style="{StaticResource StatLabel}"
-                                   Margin="0,0,0,16"/>
-                        <StackPanel x:Name="GameStatusPanel"/>
-                    </StackPanel>
-                </Border>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                <!-- Games by platform -->
-                <Border Grid.Column="2" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="GAMES BY PLATFORM"
-                                   Style="{StaticResource StatLabel}"
-                                   Margin="0,0,0,16"/>
-                        <StackPanel x:Name="PlatformPanel"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Total Movies" Foreground="#636e72" FontSize="12"/>
+                            <TextBlock x:Name="TxtTotalMovies" Foreground="#ffffff" FontSize="24" 
+                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                        </StackPanel>
 
-            <!-- Bottom row: Most played + Recently played -->
-            <Grid Margin="0,0,0,16">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="16"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="Total Shows" Foreground="#636e72" FontSize="12"/>
+                            <TextBlock x:Name="TxtTotalShows" Foreground="#ffffff" FontSize="24" 
+                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                        </StackPanel>
 
-                <!-- Most played games -->
-                <Border Grid.Column="0" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="MOST PLAYED GAMES"
-                                   Style="{StaticResource StatLabel}"
-                                   Margin="0,0,0,16"/>
-                        <StackPanel x:Name="MostPlayedPanel"/>
-                    </StackPanel>
-                </Border>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Currently Watching" Foreground="#636e72" FontSize="12"/>
+                            <TextBlock x:Name="TxtWatchingMedia" Foreground="#fdcb6e" FontSize="24" 
+                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Grid>
 
-                <!-- Recently played/watched -->
-                <Border Grid.Column="2" Style="{StaticResource StatCard}">
-                    <StackPanel>
-                        <TextBlock Text="RECENTLY PLAYED / WATCHED"
-                                   Style="{StaticResource StatLabel}"
-                                   Margin="0,0,0,16"/>
-                        <StackPanel x:Name="RecentPanel"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-        </StackPanel>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Completed" Foreground="#636e72" FontSize="12"/>
+                            <TextBlock x:Name="TxtCompletedMedia" Foreground="#0984e3" FontSize="24" 
+                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
     </ScrollViewer>
 </UserControl>

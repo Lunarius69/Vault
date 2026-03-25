@@ -21,6 +21,8 @@ namespace Vault.Database
         public static void EnsureSchema()
         {
             using var ctx = new VaultContext();
+            ctx.Database.EnsureCreated();
+
             var conn = ctx.Database.GetDbConnection();
             conn.Open();
             using var cmd = conn.CreateCommand();
@@ -28,11 +30,35 @@ namespace Vault.Database
             // Add columns if they don't exist — safe to run every startup
             var columns = new[]
             {
-        "ALTER TABLE Episodes ADD COLUMN IntroStart REAL NOT NULL DEFAULT -1",
-        "ALTER TABLE Episodes ADD COLUMN IntroEnd REAL NOT NULL DEFAULT -1",
-        "ALTER TABLE Episodes ADD COLUMN OutroStart REAL NOT NULL DEFAULT -1",
-        "ALTER TABLE Episodes ADD COLUMN FingerprintProcessed INTEGER NOT NULL DEFAULT 0",
-    };
+                // Episode columns
+                "ALTER TABLE Episodes ADD COLUMN IntroStart REAL NOT NULL DEFAULT -1",
+                "ALTER TABLE Episodes ADD COLUMN IntroEnd REAL NOT NULL DEFAULT -1",
+                "ALTER TABLE Episodes ADD COLUMN OutroStart REAL NOT NULL DEFAULT -1",
+                "ALTER TABLE Episodes ADD COLUMN FingerprintProcessed INTEGER NOT NULL DEFAULT 0",
+
+                // Game columns added over time
+                "ALTER TABLE Games ADD COLUMN HltbMainStory INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE Games ADD COLUMN HltbMainPlusExtra INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE Games ADD COLUMN HltbCompletionist INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE Games ADD COLUMN HltbMain REAL",
+                "ALTER TABLE Games ADD COLUMN HltbMainSides REAL",
+                "ALTER TABLE Games ADD COLUMN HltbComplete REAL",
+                "ALTER TABLE Games ADD COLUMN Description TEXT",
+                "ALTER TABLE Games ADD COLUMN Genre TEXT",
+                "ALTER TABLE Games ADD COLUMN FileSizeGB REAL",
+                "ALTER TABLE Games ADD COLUMN PlaytimeMinutes INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE Games ADD COLUMN LastPlayed TEXT",
+                "ALTER TABLE Games ADD COLUMN IsWishlist INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE Games ADD COLUMN IsDownloaded INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE Games ADD COLUMN ManuallyMarkedNotDownloaded INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE Games ADD COLUMN AchievementsEarned INTEGER",
+                "ALTER TABLE Games ADD COLUMN AchievementsTotal INTEGER",
+                "ALTER TABLE Games ADD COLUMN RetroAchievementsGameId INTEGER",
+                "ALTER TABLE Games ADD COLUMN LibraryType TEXT NOT NULL DEFAULT 'Owned'",
+                "ALTER TABLE Games ADD COLUMN ExePath TEXT",
+                "ALTER TABLE Games ADD COLUMN EmulatorPath TEXT",
+                "ALTER TABLE Games ADD COLUMN BoxArtPath TEXT",
+            };
 
             foreach (var sql in columns)
             {

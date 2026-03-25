@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Vault.Database;
 
@@ -10,9 +11,11 @@ using Vault.Database;
 namespace Vault.Migrations
 {
     [DbContext(typeof(VaultContext))]
-    partial class VaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260324201210_RemoveHeroPath")]
+    partial class RemoveHeroPath
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.4");
@@ -108,20 +111,11 @@ namespace Vault.Migrations
                     b.Property<double?>("HltbComplete")
                         .HasColumnType("REAL");
 
-                    b.Property<int>("HltbCompletionist")
-                        .HasColumnType("INTEGER");
-
                     b.Property<double?>("HltbMain")
                         .HasColumnType("REAL");
 
-                    b.Property<int>("HltbMainPlusExtra")
-                        .HasColumnType("INTEGER");
-
                     b.Property<double?>("HltbMainSides")
                         .HasColumnType("REAL");
-
-                    b.Property<int>("HltbMainStory")
-                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDownloaded")
                         .HasColumnType("INTEGER");

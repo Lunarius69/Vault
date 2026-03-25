@@ -6,6 +6,8 @@ namespace Vault.Models
     public class AppSettings
     {
         public string GamesFolderPath { get; set; } = "";
+        public string GamesFolderPath2 { get; set; } = "";
+        public string GamesFolderPath3 { get; set; } = "";
         public string EmulatorsFolderPath { get; set; } = "";
         public string MoviesFolderPath { get; set; } = "";
         public string ShowsFolderPath { get; set; } = "";
@@ -45,7 +47,8 @@ namespace Vault.Models
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-                string json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+                string json = JsonSerializer.Serialize(this,
+                    new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(SettingsPath, json);
             }
             catch { }

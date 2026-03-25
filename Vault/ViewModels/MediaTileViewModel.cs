@@ -1,3 +1,4 @@
+// ViewModels/MediaTileViewModel.cs
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Media.Imaging;
@@ -5,33 +6,22 @@ using Vault.Models;
 
 namespace Vault.ViewModels
 {
-    public class MediaTileViewModel : INotifyPropertyChanged
+    public class MediaTileViewModel : INotifyPropertyChanged, IDisposable
     {
         private MediaItem _item;
         private string? _posterPath;
         private BitmapImage? _loadedBitmap;
+        private bool _disposed;
 
         public MediaTileViewModel(MediaItem item)
         {
             _item = item;
             _posterPath = item.PosterPath;
 
-            // Load existing local posters synchronously — they're already on disk
-            // so this is fast and avoids the blank tile flash
+            // Load existing local posters asynchronously
             if (!string.IsNullOrEmpty(_posterPath) && File.Exists(_posterPath))
             {
-                try
-                {
-                    var bmp = new BitmapImage();
-                    bmp.BeginInit();
-                    bmp.UriSource = new Uri(_posterPath);
-                    bmp.CacheOption = BitmapCacheOption.OnLoad;
-                    bmp.DecodePixelWidth = 150;
-                    bmp.EndInit();
-                    bmp.Freeze();
-                    _loadedBitmap = bmp;
-                }
-                catch { }
+                _ = LoadPosterAsync();
             }
         }
 
@@ -51,13 +41,10 @@ namespace Vault.ViewModels
                 _item.PosterPath = value;
                 OnPropertyChanged(nameof(PosterPath));
                 OnPropertyChanged(nameof(HasPoster));
+                _ = LoadPosterAsync();
             }
         }
 
-        /// <summary>
-        /// Pre-loaded bitmap set by async loader — bind Image.Source to this
-        /// instead of PosterPath to avoid synchronous disk I/O on the UI thread.
-        /// </summary>
         public BitmapImage? LoadedBitmap
         {
             get => _loadedBitmap;
@@ -69,8 +56,7 @@ namespace Vault.ViewModels
             }
         }
 
-        public bool HasPoster =>
-            _loadedBitmap != null ||
+        public bool HasPoster => _loadedBitmap != null ||
             (!string.IsNullOrEmpty(_posterPath) && File.Exists(_posterPath));
 
         public double ProgressPercent
@@ -105,6 +91,37 @@ namespace Vault.ViewModels
                     return $"EP {_item.WatchedEpisodes}/{_item.TotalEpisodes}";
                 return "";
             }
+        }
+
+        private async System.Threading.Tasks.Task LoadPosterAsync()
+        {
+            if (string.IsNullOrEmpty(_posterPath) || !File.Exists(_posterPath))
+                return;
+
+            try
+            {
+                var bmp = await System.Threading.Tasks.Task.Run(() =>
+                {
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.UriSource = new Uri(_posterPath);
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.DecodePixelWidth = 150;
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                    return bitmap;
+                });
+
+                LoadedBitmap = bmp;
+            }
+            catch { }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            LoadedBitmap = null;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

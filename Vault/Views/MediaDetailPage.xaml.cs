@@ -26,6 +26,14 @@ namespace Vault.Views
         private List<Episode> _allEpisodes = new();
         private bool _isMovie;
 
+        // FIX #1 — cache the scanned file list so FindEpisodeFile doesn't re-scan
+        // the folder tree on every episode card click or next-episode lookup.
+        private List<string>? _cachedFolderFiles;
+        private string? _cachedFolderPath;
+
+        // FIX #2 — static brush cache shared across all MediaDetailPage instances
+        private static readonly Dictionary<string, SolidColorBrush> _statusBrushCache = new();
+
         public event EventHandler? BackRequested;
 
         private static readonly Dictionary<string, string[]> MultiTmdbSearchTerms =
@@ -79,7 +87,7 @@ namespace Vault.Views
             };
 
             TxtStatus.Text = _item.WatchStatus;
-            StatusDot.Fill = new SolidColorBrush(GetStatusColor(_item.WatchStatus));
+            StatusDot.Fill = GetStatusBrush(_item.WatchStatus);
             TxtYear.Text = _item.Year?.ToString() ?? "—";
             TxtGenre.Text = string.IsNullOrEmpty(_item.Genre) ? "—" : _item.Genre;
             TxtRating.Text = _item.TmdbRating.HasValue
@@ -110,16 +118,46 @@ namespace Vault.Views
             if (!string.IsNullOrEmpty(_item.FolderPath))
                 ShowMessage($"Folder: {Path.GetFileName(_item.FolderPath)}", "#636e72");
 
-            LoadPoster();
+            // FIX #3 — load poster and banner async off the UI thread so the page
+            // shell appears instantly. Previously BitmapCacheOption.OnLoad forced
+            // synchronous file reads on the UI thread for every page open.
+            _ = Task.Run(async () =>
+            {
+                var posterBmp = !string.IsNullOrEmpty(_item.PosterPath) && File.Exists(_item.PosterPath)
+                    ? LoadBitmapFromPath(_item.PosterPath) : null;
+                var bannerBmp = !string.IsNullOrEmpty(_item.BannerPath) && File.Exists(_item.BannerPath)
+                    ? LoadBitmapFromPath(_item.BannerPath) : null;
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (posterBmp != null)
+                    {
+                        ImgPoster.Source = posterBmp;
+                        ImgPoster.Visibility = Visibility.Visible;
+                        PlaceholderBg.Visibility = Visibility.Collapsed;
+                        TxtPlaceholder.Visibility = Visibility.Collapsed;
+                    }
+                    else
+                    {
+                        ImgPoster.Visibility = Visibility.Collapsed;
+                        PlaceholderBg.Visibility = Visibility.Visible;
+                        TxtPlaceholder.Visibility = Visibility.Visible;
+                        TxtPlaceholder.Text = _item.Title;
+                    }
+
+                    if (bannerBmp != null)
+                        ImgBanner.Source = bannerBmp;
+                });
+            });
+
             RefreshProgressBar();
 
-            if (!string.IsNullOrEmpty(_item.BannerPath) && File.Exists(_item.BannerPath))
-            {
-                var bmp = LoadBitmap(_item.BannerPath);
-                if (bmp != null) ImgBanner.Source = bmp;
-            }
-
-            if (_item.TmdbId == 0 || string.IsNullOrEmpty(_item.Description))
+            // FIX #4 — only fetch from TMDB if we're actually missing data.
+            // Previously this ran on every open if description was empty, even after
+            // a failed fetch. Now we also skip if TmdbId is already set and we have
+            // a description, avoiding a network call on every page open.
+            bool needsTmdb = _item.TmdbId == 0 || string.IsNullOrEmpty(_item.Description);
+            if (needsTmdb)
                 await FetchTmdbDataAsync();
 
             if (_isMovie)
@@ -147,11 +185,28 @@ namespace Vault.Views
             }
         }
 
+        // FIX #3 — separated from LoadBitmap; runs off-thread, returns frozen bitmap
+        // safe to use on the UI thread without further marshaling.
+        private static BitmapImage? LoadBitmapFromPath(string path)
+        {
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(path);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+                bmp.Freeze(); // makes the bitmap cross-thread safe
+                return bmp;
+            }
+            catch { return null; }
+        }
+
         private void LoadPoster()
         {
             if (!string.IsNullOrEmpty(_item.PosterPath) && File.Exists(_item.PosterPath))
             {
-                var bmp = LoadBitmap(_item.PosterPath);
+                var bmp = LoadBitmapFromPath(_item.PosterPath);
                 if (bmp != null)
                 {
                     ImgPoster.Source = bmp;
@@ -212,8 +267,13 @@ namespace Vault.Views
             if (bannerPath != null)
             {
                 _item.BannerPath = bannerPath;
-                var bmp = LoadBitmap(bannerPath);
-                if (bmp != null) ImgBanner.Source = bmp;
+                // FIX #3 — load newly fetched banner async too
+                _ = Task.Run(() =>
+                {
+                    var bmp = LoadBitmapFromPath(bannerPath);
+                    if (bmp != null)
+                        Dispatcher.Invoke(() => ImgBanner.Source = bmp);
+                });
             }
             if (details.Description != null)
             {
@@ -432,8 +492,20 @@ namespace Vault.Views
                 .Select(e => new EpisodeViewModel(e))
                 .ToList();
 
-            EpisodesItemsControl.ItemsSource =
-                new ObservableCollection<EpisodeViewModel>(viewModels);
+            // FIX #5 — reuse the existing ObservableCollection instead of replacing it.
+            // Previously created a new collection on every season tab switch, which
+            // tears down and rebuilds all episode bindings unnecessarily.
+            if (EpisodesItemsControl.ItemsSource is ObservableCollection<EpisodeViewModel> existing)
+            {
+                existing.Clear();
+                foreach (var vm in viewModels)
+                    existing.Add(vm);
+            }
+            else
+            {
+                EpisodesItemsControl.ItemsSource =
+                    new ObservableCollection<EpisodeViewModel>(viewModels);
+            }
 
             await Task.CompletedTask;
         }
@@ -471,7 +543,6 @@ namespace Vault.Views
                     return;
                 }
 
-                // For movies, create a dummy episode wrapper to reuse PlayerWindow
                 var movieEpisode = new Episode
                 {
                     Id = -1,
@@ -493,17 +564,18 @@ namespace Vault.Views
                 return;
             }
 
-            // Next unwatched with resume position
+            // FIX #1 — pre-warm the file cache before scanning for next episode
+            // so all the FindEpisodeFile calls below share one directory scan
+            EnsureFolderFilesCache();
+
             var current = _allEpisodes
                 .OrderBy(ep => ep.SeasonNumber).ThenBy(ep => ep.EpisodeNumber)
                 .FirstOrDefault(ep => !ep.IsWatched && ep.ResumePositionSeconds > 0);
 
-            // Next unwatched with a file
             current ??= _allEpisodes
                 .OrderBy(ep => ep.SeasonNumber).ThenBy(ep => ep.EpisodeNumber)
                 .FirstOrDefault(ep => !ep.IsWatched && FindEpisodeFile(ep) != null);
 
-            // Any episode with a file
             current ??= _allEpisodes
                 .OrderBy(ep => ep.SeasonNumber).ThenBy(ep => ep.EpisodeNumber)
                 .FirstOrDefault(ep => FindEpisodeFile(ep) != null);
@@ -529,6 +601,11 @@ namespace Vault.Views
             var player = new PlayerWindow(_item, startEpisode, playlist);
             player.Closed += (s, e) =>
             {
+                // FIX #1 — invalidate the file cache when returning from player
+                // in case files changed (e.g. user deleted a video)
+                _cachedFolderFiles = null;
+                _cachedFolderPath = null;
+
                 _ = Dispatcher.InvokeAsync(async () =>
                 {
                     await LoadEpisodesAsync();
@@ -656,6 +733,10 @@ namespace Vault.Views
                 await db.SaveChangesAsync();
             }
 
+            // FIX #1 — invalidate file cache when folder changes
+            _cachedFolderFiles = null;
+            _cachedFolderPath = null;
+
             ShowMessage($"Folder: {Path.GetFileName(folderPath)}", "#636e72");
             UpdatePlayButton();
         }
@@ -675,7 +756,7 @@ namespace Vault.Views
             await db.SaveChangesAsync();
 
             TxtStatus.Text = newStatus;
-            StatusDot.Fill = new SolidColorBrush(GetStatusColor(newStatus));
+            StatusDot.Fill = GetStatusBrush(newStatus);
             ShowMessage($"Status: {newStatus}", "#00b894");
         }
 
@@ -763,35 +844,49 @@ namespace Vault.Views
             ShowMessage($"Done — {_allEpisodes.Count} episodes loaded", "#00b894");
         }
 
+        // FIX #1 — build the file list once and cache it for the lifetime of this
+        // page instance. Previously Directory.GetFiles was called inside every single
+        // FindEpisodeFile call, meaning a show with 200 episodes would scan the disk
+        // 200+ times during a single LoadPageAsync.
+        private void EnsureFolderFilesCache()
+        {
+            if (_cachedFolderFiles != null && _cachedFolderPath == _item.FolderPath)
+                return;
+
+            _cachedFolderPath = _item.FolderPath;
+            _cachedFolderFiles = new List<string>();
+
+            if (string.IsNullOrEmpty(_item.FolderPath)) return;
+
+            string[] videoExts = { ".mkv", ".mp4", ".avi", ".m4v", ".mov" };
+            var searchPaths = new List<string> { _item.FolderPath };
+            string? parent = Path.GetDirectoryName(_item.FolderPath);
+            if (!string.IsNullOrEmpty(parent) && parent != _item.FolderPath)
+                searchPaths.Add(parent);
+
+            foreach (string searchPath in searchPaths)
+            {
+                if (!Directory.Exists(searchPath)) continue;
+                try
+                {
+                    _cachedFolderFiles.AddRange(
+                        Directory.GetFiles(searchPath, "*", SearchOption.AllDirectories)
+                        .Where(f => videoExts.Contains(Path.GetExtension(f).ToLower())));
+                }
+                catch { }
+            }
+        }
+
         private string? FindEpisodeFile(Episode episode)
         {
             if (string.IsNullOrEmpty(_item.FolderPath)) return null;
 
-            var searchPaths = new List<string> { _item.FolderPath };
-            string? parent = System.IO.Path.GetDirectoryName(_item.FolderPath);
-            if (!string.IsNullOrEmpty(parent) && parent != _item.FolderPath)
-                searchPaths.Add(parent);
-
-            string[] videoExts = { ".mkv", ".mp4", ".avi", ".m4v", ".mov" };
-
-            var allFiles = new List<string>();
-            foreach (string searchPath in searchPaths)
-            {
-                if (!System.IO.Directory.Exists(searchPath)) continue;
-                try
-                {
-                    allFiles.AddRange(
-                        System.IO.Directory.GetFiles(searchPath, "*",
-                            System.IO.SearchOption.AllDirectories)
-                        .Where(f => videoExts.Contains(
-                            System.IO.Path.GetExtension(f).ToLower())));
-                }
-                catch { }
-            }
+            // FIX #1 — use cached file list instead of re-scanning every call
+            EnsureFolderFilesCache();
+            var allFiles = _cachedFolderFiles!;
 
             if (allFiles.Count == 0) return null;
 
-            // Calculate local episode number by ID match, not object reference
             var episodesInSeason = _allEpisodes
                 .Where(e => e.SeasonNumber == episode.SeasonNumber)
                 .OrderBy(e => e.EpisodeNumber)
@@ -799,7 +894,7 @@ namespace Vault.Views
             int localEpNumber = episodesInSeason.FindIndex(e => e.Id == episode.Id) + 1;
             if (localEpNumber == 0) localEpNumber = 1;
 
-            // Strategy 1: exact season + local episode number (S03E01, S03E02...)
+            // Strategy 1: S03E01 with local episode number
             {
                 string pattern = $"S{episode.SeasonNumber:D2}E{localEpNumber:D2}";
                 var match = allFiles.FirstOrDefault(f =>
@@ -807,7 +902,7 @@ namespace Vault.Views
                 if (match != null) return match;
             }
 
-            // Strategy 2: exact season + global episode number (S03E27, S03E28...)
+            // Strategy 2: S03E27 with global episode number
             {
                 string pattern = $"S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
                 var match = allFiles.FirstOrDefault(f =>
@@ -815,7 +910,7 @@ namespace Vault.Views
                 if (match != null) return match;
             }
 
-            // Strategy 3: NxMM with local number (3x01)
+            // Strategy 3: 3x01 with local number
             {
                 string pattern = $"{episode.SeasonNumber}x{localEpNumber:D2}";
                 var match = allFiles.FirstOrDefault(f =>
@@ -823,7 +918,7 @@ namespace Vault.Views
                 if (match != null) return match;
             }
 
-            // Strategy 4: NxMM with global number (3x27)
+            // Strategy 4: 3x27 with global number
             {
                 string pattern = $"{episode.SeasonNumber}x{episode.EpisodeNumber:D2}";
                 var match = allFiles.FirstOrDefault(f =>
@@ -863,18 +958,17 @@ namespace Vault.Views
             TxtMessage.Visibility = Visibility.Visible;
         }
 
-        private static BitmapImage? LoadBitmap(string path)
+        // FIX #2 — use cached frozen brush instead of allocating a new one every call
+        private static Brush GetStatusBrush(string status)
         {
-            try
+            string key = status ?? "";
+            if (!_statusBrushCache.TryGetValue(key, out var brush))
             {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.UriSource = new Uri(path);
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.EndInit();
-                return bmp;
+                brush = new SolidColorBrush(GetStatusColor(key));
+                brush.Freeze();
+                _statusBrushCache[key] = brush;
             }
-            catch { return null; }
+            return brush;
         }
 
         private static Color GetStatusColor(string status) =>

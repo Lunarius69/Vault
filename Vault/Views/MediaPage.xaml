@@ -228,37 +228,38 @@
 
             <!-- Virtualized ListBox with WrapPanel -->
             <ListBox Grid.Row="1"
-                     x:Name="MediaItemsControl"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     VirtualizingPanel.IsVirtualizing="True"
-                     VirtualizingPanel.VirtualizationMode="Recycling"
-                     VirtualizingPanel.ScrollUnit="Pixel"
-                     ItemContainerStyle="{StaticResource TileListBoxItem}"
-                     SelectionMode="Single"
-                     SelectionChanged="MediaTile_SelectionChanged">
+         x:Name="MediaItemsControl"
+         Background="Transparent"
+         BorderThickness="0"
+         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+         ScrollViewer.VerticalScrollBarVisibility="Auto"
+         VirtualizingPanel.IsVirtualizing="True"
+         VirtualizingPanel.VirtualizationMode="Recycling"
+         VirtualizingPanel.ScrollUnit="Pixel"
+         ItemContainerStyle="{StaticResource TileListBoxItem}"
+         SelectionMode="Single">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                         <VirtualizingWrapPanel
-                            xmlns="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
-                            ItemSize="162,247"
-                            SpacingMode="None"
-                            StretchItems="False"/>
+                xmlns="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
+                ItemSize="162,247"
+                SpacingMode="None"
+                StretchItems="False"/>
                     </ItemsPanelTemplate>
                 </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Button Style="{StaticResource TileButton}"
-                                Width="150" Height="235" Margin="6">
+                    Width="150" Height="235" Margin="6"
+                    Click="MediaTile_Click">
                             <Border CornerRadius="8" ClipToBounds="True"
-                                    Background="#16213e">
+                        Background="#16213e">
                                 <Grid>
                                     <!-- Async poster image -->
                                     <Image Stretch="UniformToFill"
-       RenderOptions.BitmapScalingMode="HighQuality"
-       Source="{Binding LoadedBitmap}"/>
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Source="{Binding LoadedBitmap}"/>
+
                                     <!-- Placeholder when no poster -->
                                     <Border Background="#0f3460">
                                         <Border.Style>
@@ -272,14 +273,14 @@
                                             </Style>
                                         </Border.Style>
                                         <TextBlock Text="{Binding Title}"
-                                                   Foreground="#b2bec3"
-                                                   FontFamily="Segoe UI"
-                                                   FontSize="12"
-                                                   TextWrapping="Wrap"
-                                                   TextAlignment="Center"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Margin="8"/>
+                                       Foreground="#b2bec3"
+                                       FontFamily="Segoe UI"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="8"/>
                                     </Border>
 
                                     <!-- Gradient overlay -->
@@ -295,17 +296,17 @@
                                     <!-- Episode info + status -->
                                     <StackPanel VerticalAlignment="Bottom" Margin="8,0,8,20">
                                         <TextBlock Text="{Binding EpisodeInfo}"
-                                                   Foreground="#b2bec3" FontSize="10"
-                                                   FontFamily="Segoe UI" Margin="0,0,0,2"/>
+                                       Foreground="#b2bec3" FontSize="10"
+                                       FontFamily="Segoe UI" Margin="0,0,0,2"/>
                                         <StackPanel Orientation="Horizontal">
                                             <Ellipse Width="7" Height="7"
-                                                     Margin="0,0,4,0"
-                                                     VerticalAlignment="Center"
-                                                     Fill="{Binding StatusColor}"/>
+                                         Margin="0,0,4,0"
+                                         VerticalAlignment="Center"
+                                         Fill="{Binding StatusColor}"/>
                                             <TextBlock Text="{Binding WatchStatus}"
-                                                       Foreground="#b2bec3" FontSize="10"
-                                                       FontFamily="Segoe UI"
-                                                       VerticalAlignment="Center"/>
+                                           Foreground="#b2bec3" FontSize="10"
+                                           FontFamily="Segoe UI"
+                                           VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </StackPanel>
 
@@ -313,7 +314,7 @@
                                     <Grid VerticalAlignment="Bottom" Height="4">
                                         <Border Background="#2d3561"/>
                                         <Border Background="#e94560"
-                                                HorizontalAlignment="Left">
+                                    HorizontalAlignment="Left">
                                             <Border.Style>
                                                 <Style TargetType="Border">
                                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -336,7 +337,7 @@
                 </ListBox.ItemTemplate>
             </ListBox>
         </Grid>
-
+        
         <!-- Loading overlay -->
         <Border Grid.Row="1" x:Name="LoadingOverlay"
                 Background="#CC1a1a2e" Visibility="Collapsed"

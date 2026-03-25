@@ -20,6 +20,7 @@ namespace Vault.Views
         private readonly HltbService _hltb = new();
         private readonly RetroAchievementsService? _ra;
         private readonly BoxArtService? _boxArt;
+
         public event EventHandler? BackRequested;
         public event EventHandler? GameUpdated;
 
@@ -42,14 +43,12 @@ namespace Vault.Views
         {
             var game = _game;
 
-            // Title, platform, status
             TxtTitle.Text = game.Title;
             TxtPlatform.Text = game.Platform;
             PlatformBadge.Background = new SolidColorBrush(GetPlatformColor(game.Platform));
             TxtStatus.Text = game.Status;
             StatusDot.Fill = new SolidColorBrush(GetStatusColor(game.Status));
 
-            // Info fields
             TxtYear.Text = game.Year?.ToString() ?? "—";
             TxtGenre.Text = string.IsNullOrEmpty(game.Genre) ? "—" : game.Genre;
             TxtSize.Text = game.FileSizeGB.HasValue ? $"{game.FileSizeGB:F1} GB" : "—";
@@ -60,60 +59,20 @@ namespace Vault.Views
             TxtDescription.Text = string.IsNullOrEmpty(game.Description)
                 ? "No description available." : game.Description;
 
-            // Launch button label
             UpdateLaunchButton();
-
-            // Box art
             LoadBoxArt();
-
-            // HLTB — show cached, fetch if missing
             RefreshHltb();
+
+            // Fetch HLTB if missing
             if (!game.HltbMain.HasValue)
                 await FetchHltbAsync();
 
-            // Achievements
             RefreshAchievements();
             if (_ra?.IsConfigured == true && game.AchievementsTotal == null)
                 await FetchAchievementsAsync();
 
-            // Banner — fetch in background, show when ready
-            if (_boxArt != null)
-            {
-                string? heroPath = await _boxArt.GetHeroAsync(game);
-                if (!string.IsNullOrEmpty(heroPath) && File.Exists(heroPath))
-                {
-                    var bmp = new BitmapImage();
-                    bmp.BeginInit();
-                    bmp.UriSource = new Uri(heroPath);
-                    bmp.CacheOption = BitmapCacheOption.OnLoad;
-                    bmp.EndInit();
-                    ImgBanner.Source = bmp;
-                }
-            }
-        }
-
-        private async void BtnMarkNotDownloaded_Click(object sender, RoutedEventArgs e)
-        {
-            if (_game == null) return;
-
-            using var db = new VaultContext();
-            var dbGame = await db.Games.FindAsync(_game.Id);
-            if (dbGame == null) return;
-
-            dbGame.IsDownloaded = false;
-            dbGame.ExePath = null;
-            dbGame.EmulatorPath = null;
-            dbGame.ManuallyMarkedNotDownloaded = true;
-            _game.IsDownloaded = false;
-            _game.ExePath = null;
-            _game.EmulatorPath = null;
-
-            await db.SaveChangesAsync();
-
-            BtnLaunch.IsEnabled = false;
-            BtnLaunch.Content = "▶   Not Downloaded";
-            ShowMessage("Marked as not downloaded.", "#636e72");
-            GameUpdated?.Invoke(this, EventArgs.Empty);
+            // Banner
+            
         }
 
         private void LoadBoxArt()
@@ -139,7 +98,6 @@ namespace Vault.Views
             }
         }
 
-
         private void UpdateLaunchButton()
         {
             bool canLaunch = _game.IsDownloaded &&
@@ -159,8 +117,13 @@ namespace Vault.Views
         private async System.Threading.Tasks.Task FetchHltbAsync()
         {
             TxtHltbMain.Text = "...";
-            var (main, sides, complete) = await _hltb.FetchAsync(_game.Title);
-            if (main == null && sides == null && complete == null)
+            TxtHltbSides.Text = "...";
+            TxtHltbComplete.Text = "...";
+
+            // Use FetchGameDataAsync which is the actual method on HltbService
+            var data = await _hltb.FetchGameDataAsync(_game.Title);
+
+            if (data == null)
             {
                 RefreshHltb();
                 return;
@@ -170,15 +133,30 @@ namespace Vault.Views
             var dbGame = await db.Games.FindAsync(_game.Id);
             if (dbGame != null)
             {
-                dbGame.HltbMain = main;
-                dbGame.HltbMainSides = sides;
-                dbGame.HltbComplete = complete;
+                dbGame.HltbMain = data.MainStory;
+                dbGame.HltbMainSides = data.MainPlusExtra;
+                dbGame.HltbComplete = data.Completionist;
+                if (!string.IsNullOrEmpty(data.Description))
+                    dbGame.Description = data.Description;
+                if (!string.IsNullOrEmpty(data.Genre))
+                    dbGame.Genre = data.Genre;
                 await db.SaveChangesAsync();
             }
 
-            _game.HltbMain = main;
-            _game.HltbMainSides = sides;
-            _game.HltbComplete = complete;
+            _game.HltbMain = data.MainStory;
+            _game.HltbMainSides = data.MainPlusExtra;
+            _game.HltbComplete = data.Completionist;
+            if (!string.IsNullOrEmpty(data.Description))
+            {
+                _game.Description = data.Description;
+                TxtDescription.Text = data.Description;
+            }
+            if (!string.IsNullOrEmpty(data.Genre))
+            {
+                _game.Genre = data.Genre;
+                TxtGenre.Text = data.Genre;
+            }
+
             RefreshHltb();
         }
 
@@ -192,7 +170,6 @@ namespace Vault.Views
                 TxtAchievements.Text = $"{earned} / {total}";
                 TxtAchievementPct.Text = $"{pct:F0}% complete";
 
-                // Update bar width after layout
                 Dispatcher.InvokeAsync(() =>
                 {
                     double maxWidth = AchievementsPanel.ActualWidth - 40;
@@ -227,11 +204,7 @@ namespace Vault.Views
             }
 
             var result = await _ra.GetAchievementsAsync(raId.Value);
-            if (result == null)
-            {
-                TxtAchievements.Text = "—";
-                return;
-            }
+            if (result == null) { TxtAchievements.Text = "—"; return; }
 
             using var db = new VaultContext();
             var dbGame = await db.Games.FindAsync(_game.Id);
@@ -291,6 +264,7 @@ namespace Vault.Views
 
             UpdateLaunchButton();
             ShowMessage("Path saved!", "#00b894");
+            GameUpdated?.Invoke(this, EventArgs.Empty);
         }
 
         private void BtnEditStatus_Click(object sender, RoutedEventArgs e)
@@ -304,7 +278,6 @@ namespace Vault.Views
             };
 
             var button = sender as Button;
-
             var border = new Border
             {
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16213e")),
@@ -361,7 +334,6 @@ namespace Vault.Views
                     FontSize = 13,
                     VerticalAlignment = VerticalAlignment.Center
                 });
-
                 btn.Content = btnPanel;
 
                 var template = new ControlTemplate(typeof(Button));
@@ -374,8 +346,6 @@ namespace Vault.Views
                     });
                 factory.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
                 var contentFactory = new FrameworkElementFactory(typeof(ContentPresenter));
-                contentFactory.SetValue(ContentPresenter.MarginProperty,
-                    new Thickness(0));
                 factory.AppendChild(contentFactory);
                 template.VisualTree = factory;
                 btn.Template = template;
@@ -386,7 +356,6 @@ namespace Vault.Views
                     popup.IsOpen = false;
                     await SetStatusAsync(capturedStatus);
                 };
-
                 btn.MouseEnter += (s, args) =>
                     btn.Background = new SolidColorBrush(
                         (Color)ColorConverter.ConvertFromString("#2d3561"));
@@ -403,10 +372,8 @@ namespace Vault.Views
             popup.IsOpen = true;
         }
 
-        private async Task SetStatusAsync(string newStatus)
+        private async System.Threading.Tasks.Task SetStatusAsync(string newStatus)
         {
-            if (_game == null) return;
-
             using var db = new VaultContext();
             var dbGame = await db.Games.FindAsync(_game.Id);
             if (dbGame == null) return;
@@ -418,6 +385,26 @@ namespace Vault.Views
             TxtStatus.Text = newStatus;
             StatusDot.Fill = new SolidColorBrush(GetStatusColor(newStatus));
             ShowMessage($"Status: {newStatus}", "#00b894");
+            GameUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        private async void BtnMarkNotDownloaded_Click(object sender, RoutedEventArgs e)
+        {
+            using var db = new VaultContext();
+            var dbGame = await db.Games.FindAsync(_game.Id);
+            if (dbGame == null) return;
+
+            dbGame.IsDownloaded = false;
+            dbGame.ExePath = null;
+            dbGame.EmulatorPath = null;
+            dbGame.ManuallyMarkedNotDownloaded = true;
+            _game.IsDownloaded = false;
+            _game.ExePath = null;
+            _game.EmulatorPath = null;
+            await db.SaveChangesAsync();
+
+            UpdateLaunchButton();
+            ShowMessage("Marked as not downloaded.", "#636e72");
             GameUpdated?.Invoke(this, EventArgs.Empty);
         }
 

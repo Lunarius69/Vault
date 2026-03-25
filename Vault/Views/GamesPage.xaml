@@ -1,7 +1,7 @@
 ﻿<UserControl x:Class="Vault.Views.GamesPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:local="clr-namespace:Vault.Views"
+      xmlns:vwp="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
       Background="#1a1a2e">
 
     <UserControl.Resources>
@@ -58,6 +58,11 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="OptimizedImage" TargetType="Image">
+            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
+            <Setter Property="Stretch" Value="UniformToFill"/>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -77,32 +82,25 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-    <TextBlock Text="FILTER:" Foreground="#636e72" FontSize="11"
-               FontFamily="Segoe UI" FontWeight="Bold"
-               VerticalAlignment="Center" Margin="0,0,12,0"/>
-    <Button x:Name="BtnAll" Content="All" Style="{StaticResource FilterButtonActive}"
-            Click="FilterBtn_Click" Tag="All"/>
-    <Button x:Name="BtnPlaying" Content="Playing" Style="{StaticResource FilterButton}"
-            Click="FilterBtn_Click" Tag="Playing"/>
-    <Button x:Name="BtnCompleted" Content="Completed" Style="{StaticResource FilterButton}"
-            Click="FilterBtn_Click" Tag="Completed"/>
-    <Button x:Name="BtnNotStarted" Content="Not Started" Style="{StaticResource FilterButton}"
-            Click="FilterBtn_Click" Tag="Not Started"/>
-    <Button x:Name="BtnDownloaded" Content="Downloaded" Style="{StaticResource FilterButton}"
-            Click="FilterBtn_Click" Tag="Downloaded"/>
+                    <TextBlock Text="FILTER:" Foreground="#636e72" FontSize="11"
+                               FontFamily="Segoe UI" FontWeight="Bold"
+                               VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <Button x:Name="BtnAll" Content="All" Style="{StaticResource FilterButtonActive}"
+                            Click="FilterBtn_Click" Tag="All"/>
+                    <Button x:Name="BtnPlaying" Content="Playing" Style="{StaticResource FilterButton}"
+                            Click="FilterBtn_Click" Tag="Playing"/>
+                    <Button x:Name="BtnCompleted" Content="Completed" Style="{StaticResource FilterButton}"
+                            Click="FilterBtn_Click" Tag="Completed"/>
+                    <Button x:Name="BtnNotStarted" Content="Not Started" Style="{StaticResource FilterButton}"
+                            Click="FilterBtn_Click" Tag="Not Started"/>
+                    <Button x:Name="BtnDownloaded" Content="Downloaded" Style="{StaticResource FilterButton}"
+                            Click="FilterBtn_Click" Tag="Downloaded"/>
 
-    <!-- Scan ROMs button -->
-    <Button x:Name="BtnScanRoms" Content="⟳  Scan ROMs"
-            Style="{StaticResource FilterButton}"
-            Click="BtnScanRoms_Click"
-            Margin="16,0,0,0"/>
-                    <TextBlock x:Name="TxtArtStatus"
-           Foreground="#636e72" FontSize="11"
-           FontFamily="Segoe UI"
-           VerticalAlignment="Center"
-           Margin="16,0,0,0"
-           Text=""/>
-</StackPanel>
+                    <Button x:Name="BtnScanRoms" Content="⟳  Scan ROMs"
+                            Style="{StaticResource FilterButton}"
+                            Click="BtnScanRoms_Click"
+                            Margin="16,0,0,0"/>
+                </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="SORT:" Foreground="#636e72" FontSize="11"
@@ -111,93 +109,6 @@
                     <ComboBox x:Name="SortCombo" Width="140" Height="30"
                               FontFamily="Segoe UI" FontSize="12"
                               SelectionChanged="SortCombo_SelectionChanged">
-                        <ComboBox.Resources>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#16213e"/>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#b2bec3"/>
-                            <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#16213e"/>
-                            <Style TargetType="ComboBoxItem">
-                                <Setter Property="Background" Value="#0d1117"/>
-                                <Setter Property="Foreground" Value="#b2bec3"/>
-                                <Setter Property="FontFamily" Value="Segoe UI"/>
-                                <Setter Property="FontSize" Value="12"/>
-                                <Setter Property="Padding" Value="8,6"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ComboBoxItem">
-                                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                                    Padding="{TemplateBinding Padding}">
-                                                <ContentPresenter/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsHighlighted" Value="True">
-                                                    <Setter TargetName="Bd" Property="Background" Value="#e94560"/>
-                                                    <Setter Property="Foreground" Value="#ffffff"/>
-                                                </Trigger>
-                                                <Trigger Property="IsSelected" Value="True">
-                                                    <Setter TargetName="Bd" Property="Background" Value="#2d3561"/>
-                                                    <Setter Property="Foreground" Value="#ffffff"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </ComboBox.Resources>
-                        <ComboBox.Template>
-                            <ControlTemplate TargetType="ComboBox">
-                                <Grid>
-                                    <Border x:Name="MainBorder" Background="#16213e"
-                                            BorderBrush="#2d3561" BorderThickness="1" CornerRadius="6">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="28"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ContentPresenter Grid.Column="0"
-                                                              Content="{TemplateBinding SelectionBoxItem}"
-                                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                              VerticalAlignment="Center" Margin="10,0,0,0"
-                                                              IsHitTestVisible="False"
-                                                              TextBlock.Foreground="#b2bec3"/>
-                                            <TextBlock Grid.Column="1" Text="&#x25BE;"
-                                                       Foreground="#b2bec3" VerticalAlignment="Center"
-                                                       HorizontalAlignment="Center" FontSize="10"/>
-                                            <ToggleButton Grid.ColumnSpan="2"
-                                                          IsChecked="{Binding IsDropDownOpen,
-                                                          RelativeSource={RelativeSource TemplatedParent},
-                                                          Mode=TwoWay}"
-                                                          Focusable="False" Opacity="0">
-                                                <ToggleButton.Template>
-                                                    <ControlTemplate TargetType="ToggleButton">
-                                                        <Border Background="Transparent"/>
-                                                    </ControlTemplate>
-                                                </ToggleButton.Template>
-                                            </ToggleButton>
-                                        </Grid>
-                                    </Border>
-                                    <Popup IsOpen="{TemplateBinding IsDropDownOpen}"
-                                           Placement="Bottom" AllowsTransparency="False">
-                                        <Border Background="#0d1117" BorderBrush="#2d3561"
-                                                BorderThickness="1"
-                                                MinWidth="{TemplateBinding ActualWidth}">
-                                            <ScrollViewer MaxHeight="200">
-                                                <ItemsPresenter/>
-                                            </ScrollViewer>
-                                        </Border>
-                                    </Popup>
-                                </Grid>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="MainBorder" Property="Background" Value="#e94560"/>
-                                        <Setter TargetName="MainBorder" Property="BorderBrush" Value="#e94560"/>
-                                    </Trigger>
-                                    <Trigger Property="IsDropDownOpen" Value="True">
-                                        <Setter TargetName="MainBorder" Property="Background" Value="#e94560"/>
-                                        <Setter TargetName="MainBorder" Property="BorderBrush" Value="#e94560"/>
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </ComboBox.Template>
                         <ComboBoxItem Content="Title A-Z" IsSelected="True"/>
                         <ComboBoxItem Content="Title Z-A"/>
                         <ComboBoxItem Content="Year (Newest)"/>
@@ -237,11 +148,17 @@
 
                 <!-- Grid view -->
                 <ScrollViewer Grid.Row="1" x:Name="GridScrollViewer"
-                              VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="GamesItemsControl">
+                              VerticalScrollBarVisibility="Auto"
+                              CanContentScroll="True"
+                              VirtualizingPanel.ScrollUnit="Pixel">
+                    <ItemsControl x:Name="GamesItemsControl"
+                                  ScrollViewer.CanContentScroll="True"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                  VirtualizingPanel.ScrollUnit="Pixel">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel/>
+                                <vwp:VirtualizingWrapPanel Orientation="Horizontal" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
@@ -252,7 +169,8 @@
                                     <Border CornerRadius="8" ClipToBounds="True"
                                             Background="#16213e">
                                         <Grid>
-                                            <Image Source="{Binding BoxArtPath}" Stretch="UniformToFill"/>
+                                            <Image Source="{Binding LoadedBoxArt}"
+                                                   Style="{StaticResource OptimizedImage}"/>
                                             <Border Background="#0f3460">
                                                 <Border.Style>
                                                     <Style TargetType="Border">

@@ -19,6 +19,8 @@ namespace Vault.Views
         private void LoadSettings()
         {
             TxtGamesFolder.Text = _settings.GamesFolderPath;
+            TxtGamesFolder2.Text = _settings.GamesFolderPath2;
+            TxtGamesFolder3.Text = _settings.GamesFolderPath3;
             TxtEmulatorsFolder.Text = _settings.EmulatorsFolderPath;
             TxtMoviesFolder.Text = _settings.MoviesFolderPath;
             TxtShowsFolder.Text = _settings.ShowsFolderPath;
@@ -28,6 +30,8 @@ namespace Vault.Views
             TxtTmdbKey.Text = _settings.TmdbApiKey;
             TxtSteamKey.Text = _settings.SteamApiKey;
             TxtSteamId.Text = _settings.SteamUserId;
+            TxtRetroUser.Text = _settings.RetroAchievementsUser;
+            TxtRetroKey.Text = _settings.RetroAchievementsApiKey;
             TxtOpenVGDB.Text = _settings.OpenVGDBPath ?? "";
             TxtGamesExcel.Text = _settings.GamesExcelPath;
             TxtMediaExcel.Text = _settings.MediaExcelPath;
@@ -36,6 +40,8 @@ namespace Vault.Views
         private void SaveSettings_Click(object sender, RoutedEventArgs e)
         {
             _settings.GamesFolderPath = TxtGamesFolder.Text.Trim();
+            _settings.GamesFolderPath2 = TxtGamesFolder2.Text.Trim();
+            _settings.GamesFolderPath3 = TxtGamesFolder3.Text.Trim();
             _settings.EmulatorsFolderPath = TxtEmulatorsFolder.Text.Trim();
             _settings.MoviesFolderPath = TxtMoviesFolder.Text.Trim();
             _settings.ShowsFolderPath = TxtShowsFolder.Text.Trim();
@@ -45,6 +51,8 @@ namespace Vault.Views
             _settings.TmdbApiKey = TxtTmdbKey.Text.Trim();
             _settings.SteamApiKey = TxtSteamKey.Text.Trim();
             _settings.SteamUserId = TxtSteamId.Text.Trim();
+            _settings.RetroAchievementsUser = TxtRetroUser.Text.Trim();
+            _settings.RetroAchievementsApiKey = TxtRetroKey.Text.Trim();
             _settings.OpenVGDBPath = TxtOpenVGDB.Text.Trim();
             _settings.GamesExcelPath = TxtGamesExcel.Text.Trim();
             _settings.MediaExcelPath = TxtMediaExcel.Text.Trim();
@@ -70,6 +78,18 @@ namespace Vault.Views
         {
             var path = BrowseFolder();
             if (!string.IsNullOrEmpty(path)) TxtGamesFolder.Text = path;
+        }
+
+        private void BrowseGames2_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseFolder();
+            if (!string.IsNullOrEmpty(path)) TxtGamesFolder2.Text = path;
+        }
+
+        private void BrowseGames3_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseFolder();
+            if (!string.IsNullOrEmpty(path)) TxtGamesFolder3.Text = path;
         }
 
         private void BrowseEmulators_Click(object sender, RoutedEventArgs e)
@@ -134,7 +154,8 @@ namespace Vault.Views
             TxtImportStatus.Visibility = Visibility.Visible;
 
             using var db = new Vault.Database.VaultContext();
-            var importer = new Vault.Services.ExcelImporter(db);
+            var boxArtService = new Vault.Services.BoxArtService(_settings);
+            var importer = new Vault.Services.ExcelImporter(db, boxArtService);
             var result = await importer.ImportGamesAsync(TxtGamesExcel.Text.Trim());
 
             TxtImportStatus.Foreground = System.Windows.Media.Brushes.LightGreen;
@@ -155,7 +176,8 @@ namespace Vault.Views
             TxtImportStatus.Visibility = Visibility.Visible;
 
             using var db = new Vault.Database.VaultContext();
-            var importer = new Vault.Services.ExcelImporter(db);
+            var boxArtService = new Vault.Services.BoxArtService(_settings);
+            var importer = new Vault.Services.ExcelImporter(db, boxArtService);
             var result = await importer.ImportMediaAsync(TxtMediaExcel.Text.Trim());
 
             TxtImportStatus.Foreground = System.Windows.Media.Brushes.LightGreen;

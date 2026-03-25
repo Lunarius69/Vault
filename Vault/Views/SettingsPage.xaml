@@ -99,10 +99,24 @@
             <TextBlock Text="FOLDER PATHS" Style="{StaticResource SectionHeader}"/>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                <TextBlock Text="Games Folder" Style="{StaticResource SettingsLabel}"/>
+                <TextBlock Text="Games Folder 1" Style="{StaticResource SettingsLabel}"/>
                 <TextBox x:Name="TxtGamesFolder" Style="{StaticResource SettingsTextBox}"/>
                 <Button Content="Browse" Style="{StaticResource BrowseButton}"
                         Click="BrowseGames_Click"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Text="Games Folder 2" Style="{StaticResource SettingsLabel}"/>
+                <TextBox x:Name="TxtGamesFolder2" Style="{StaticResource SettingsTextBox}"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseGames2_Click"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Text="Games Folder 3" Style="{StaticResource SettingsLabel}"/>
+                <TextBox x:Name="TxtGamesFolder3" Style="{StaticResource SettingsTextBox}"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseGames3_Click"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
@@ -184,6 +198,26 @@
                          Foreground="#636e72" FontSize="10"/>
                 </TextBlock>
                 <TextBox x:Name="TxtSteamId" Style="{StaticResource SettingsTextBox}"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Style="{StaticResource SettingsLabel}">
+                    <Run Text="RetroAchievements User"/>
+                    <LineBreak/>
+                    <Run Text="retroachievements.org username"
+                         Foreground="#636e72" FontSize="10"/>
+                </TextBlock>
+                <TextBox x:Name="TxtRetroUser" Style="{StaticResource SettingsTextBox}"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Style="{StaticResource SettingsLabel}">
+                    <Run Text="RetroAchievements API Key"/>
+                    <LineBreak/>
+                    <Run Text="retroachievements.org/settings"
+                         Foreground="#636e72" FontSize="10"/>
+                </TextBlock>
+                <TextBox x:Name="TxtRetroKey" Style="{StaticResource SettingsTextBox}"/>
             </StackPanel>
 
             <Border Height="1" Background="#2d3561" Margin="0,8,0,0"/>

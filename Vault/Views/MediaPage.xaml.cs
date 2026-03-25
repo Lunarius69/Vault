@@ -49,11 +49,10 @@ namespace Vault.Views
         }
 
         // ------------------------------------------------------------------ //
-        //  Async image loading — loads bitmaps off the UI thread
+        //  Async image loading
         // ------------------------------------------------------------------ //
         private static async Task LoadPostersAsync(List<MediaTileViewModel> tiles)
         {
-            // Process in batches so UI stays responsive
             const int BatchSize = 20;
             for (int i = 0; i < tiles.Count; i += BatchSize)
             {
@@ -65,28 +64,24 @@ namespace Vault.Views
 
                     try
                     {
-                        // Load bitmap on background thread
                         var bmp = await Task.Run(() =>
                         {
                             var b = new BitmapImage();
                             b.BeginInit();
                             b.UriSource = new Uri(tile.PosterPath!);
                             b.CacheOption = BitmapCacheOption.OnLoad;
-                            b.DecodePixelWidth = 150; // only decode at display size
+                            b.DecodePixelWidth = 150;
                             b.EndInit();
-                            b.Freeze(); // must freeze to use across threads
+                            b.Freeze();
                             return b;
                         });
 
-                        // Update on UI thread
                         tile.LoadedBitmap = bmp;
                     }
                     catch { }
                 });
 
                 await Task.WhenAll(tasks);
-
-                // Yield to UI between batches
                 await Task.Delay(10);
             }
         }
@@ -149,7 +144,6 @@ namespace Vault.Views
 
                         if (posterPath != null)
                         {
-                            // Load async then update tile
                             try
                             {
                                 var bmp = await Task.Run(() =>
@@ -257,21 +251,27 @@ namespace Vault.Views
             if (TxtItemCount != null)
                 TxtItemCount.Text = $"{list.Count} titles";
 
+            // FIX — preserve already-loaded bitmaps across filter/sort changes,
+            // then reuse the existing ObservableCollection instead of replacing it.
+            // Previously this created a brand new collection on every filter click,
+            // destroying and rebuilding all tile bindings unnecessarily.
             var existingBitmaps = _tiles.ToDictionary(t => t.Id, t => t.LoadedBitmap);
 
-            _tiles = new ObservableCollection<MediaTileViewModel>(
-                list.Select(m =>
-                {
-                    var tile = new MediaTileViewModel(m);
-                    // Reuse already-loaded bitmaps so we don't reload on filter change
-                    if (existingBitmaps.TryGetValue(m.Id, out var bmp) && bmp != null)
-                        tile.LoadedBitmap = bmp;
-                    return tile;
-                }));
+            var newTiles = list.Select(m =>
+            {
+                var tile = new MediaTileViewModel(m);
+                if (existingBitmaps.TryGetValue(m.Id, out var bmp) && bmp != null)
+                    tile.LoadedBitmap = bmp;
+                return tile;
+            }).ToList();
 
-            MediaItemsControl.ItemsSource = _tiles;
+            if (MediaItemsControl.ItemsSource != _tiles)
+                MediaItemsControl.ItemsSource = _tiles;
 
-            // Load posters async for visible tiles first
+            _tiles.Clear();
+            foreach (var tile in newTiles)
+                _tiles.Add(tile);
+
             var tilesNeedingLoad = _tiles
                 .Where(t => t.LoadedBitmap == null && t.HasPoster)
                 .ToList();
@@ -279,7 +279,6 @@ namespace Vault.Views
             if (tilesNeedingLoad.Count > 0)
                 _ = LoadPostersAsync(tilesNeedingLoad);
 
-            // Fetch from TMDB for any missing posters
             var stillMissing = _tiles.Where(t => !t.HasPoster).ToList();
             if (stillMissing.Count > 0)
                 _ = FetchMissingPostersAsync(stillMissing);
@@ -288,13 +287,10 @@ namespace Vault.Views
         // ------------------------------------------------------------------ //
         //  Selection
         // ------------------------------------------------------------------ //
-        private void MediaTile_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void MediaTile_Click(object sender, RoutedEventArgs e)
         {
-            if (MediaItemsControl.SelectedItem is MediaTileViewModel tile)
-            {
-                MediaItemsControl.SelectedItem = null; // clear selection highlight
+            if (sender is Button btn && btn.DataContext is MediaTileViewModel tile)
                 ItemSelected?.Invoke(this, tile.Item);
-            }
         }
 
         // ------------------------------------------------------------------ //
@@ -313,17 +309,23 @@ namespace Vault.Views
             if (TxtItemCount != null)
                 TxtItemCount.Text = $"{list.Count} titles";
 
+            // FIX — same collection reuse pattern as ApplyFilters
             var existingBitmaps = _tiles.ToDictionary(t => t.Id, t => t.LoadedBitmap);
-            _tiles = new ObservableCollection<MediaTileViewModel>(
-                list.Select(m =>
-                {
-                    var tile = new MediaTileViewModel(m);
-                    if (existingBitmaps.TryGetValue(m.Id, out var bmp) && bmp != null)
-                        tile.LoadedBitmap = bmp;
-                    return tile;
-                }));
 
-            MediaItemsControl.ItemsSource = _tiles;
+            var newTiles = list.Select(m =>
+            {
+                var tile = new MediaTileViewModel(m);
+                if (existingBitmaps.TryGetValue(m.Id, out var bmp) && bmp != null)
+                    tile.LoadedBitmap = bmp;
+                return tile;
+            }).ToList();
+
+            if (MediaItemsControl.ItemsSource != _tiles)
+                MediaItemsControl.ItemsSource = _tiles;
+
+            _tiles.Clear();
+            foreach (var tile in newTiles)
+                _tiles.Add(tile);
 
             var tilesNeedingLoad = _tiles
                 .Where(t => t.LoadedBitmap == null && t.HasPoster)

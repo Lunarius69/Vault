@@ -15,6 +15,9 @@ namespace Vault.Models
         public string? EmulatorPath { get; set; }
         public string? BoxArtPath { get; set; }
         public string? Description { get; set; }
+        public int HltbMainStory { get; set; }
+        public int HltbMainPlusExtra { get; set; }
+        public int HltbCompletionist { get; set; }
         public string? Genre { get; set; }
         public int PlaytimeMinutes { get; set; } = 0;
         public double? HltbMain { get; set; }
@@ -23,7 +26,6 @@ namespace Vault.Models
         public DateTime? LastPlayed { get; set; }
         public bool IsWishlist { get; set; } = false;
         public bool IsDownloaded { get; set; } = false;
-
         public bool ManuallyMarkedNotDownloaded { get; set; } = false;
 
         // Achievements
