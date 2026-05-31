@@ -108,7 +108,7 @@
             <Button x:Name="BtnBack" Content="← Back"
                     HorizontalAlignment="Left" VerticalAlignment="Top"
                     Margin="20,16,0,0"
-                    Background="#33ffffff" Foreground="#ffffff"
+                    Background="#bb000000" Foreground="#ffffff"
                     BorderThickness="0" FontSize="13"
                     FontFamily="Segoe UI" Cursor="Hand" Padding="14,6"
                     Click="BtnBack_Click">
@@ -121,7 +121,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#55ffffff"/>
+                                <Setter Property="Background" Value="#dd000000"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -323,7 +323,8 @@
                                                 BorderThickness="0"
                                                 Cursor="Hand"
                                                 Tag="{Binding}"
-                                                Click="EpisodeCard_Click">
+                                                Click="EpisodeCard_Click"
+                                                MouseRightButtonUp="EpisodeCard_RightClick">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border x:Name="CardBorder"

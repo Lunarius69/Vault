@@ -43,6 +43,9 @@ namespace Vault.Services
             var process = Process.Start(startInfo)
                 ?? throw new Exception("Failed to start process.");
 
+            // Register PID so the watcher doesn't double-count this session
+            ProcessWatcherService.LauncherOwnedPids.Add(process.Id);
+
             // Track playtime in background
             DateTime startTime = DateTime.Now;
             _ = TrackPlaytimeAsync(game, process, startTime);
@@ -54,6 +57,9 @@ namespace Vault.Services
             {
                 await process.WaitForExitAsync();
                 int minutes = (int)(DateTime.Now - startTime).TotalMinutes;
+
+                ProcessWatcherService.LauncherOwnedPids.Remove(process.Id);
+
                 if (minutes < 1) return;
 
                 using var db = new VaultContext();
@@ -63,13 +69,16 @@ namespace Vault.Services
                 dbGame.PlaytimeMinutes += minutes;
                 dbGame.LastPlayed = DateTime.Now;
 
-                // Update in-memory object too so UI reflects it immediately
                 game.PlaytimeMinutes += minutes;
                 game.LastPlayed = dbGame.LastPlayed;
 
                 await db.SaveChangesAsync();
+                ProcessWatcherService.NotifyPlaytimeUpdated(game.Id);
             }
-            catch { }
+            catch
+            {
+                ProcessWatcherService.LauncherOwnedPids.Remove(process.Id);
+            }
         }
 
         private static string? ResolveExePath(Game game)

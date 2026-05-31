@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\aleks\\\\source\\\\repos\\\\Vault\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet ef *)",
+      "Bash(dotnet tool *)",
+      "PowerShell(ls \"$env:USERPROFILE\\\\.dotnet\\\\tools\\\\\" 2>&1 | Select-Object -First 30)",
+      "PowerShell(dotnet tool install *)"
+    ]
+  }
+}

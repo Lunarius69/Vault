@@ -23,5 +23,11 @@ namespace Vault.Models
         public int? CurrentSeason { get; set; }
         public int? CurrentEpisode { get; set; }
         public int TmdbId { get; set; }
+
+        // Total minutes spent watching this item across all sessions
+        public long WatchTimeMinutes { get; set; } = 0;
+
+        // Actual runtime in minutes — populated from the player on first play for movies
+        public int RuntimeMinutes { get; set; } = 0;
     }
 }

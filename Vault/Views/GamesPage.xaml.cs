@@ -45,10 +45,18 @@ namespace Vault.Views
             ApplyFilters();
         }
 
-        public void SetViewMode(bool isGrid)
+        // Called by MainWindow.OnGameSelected → MovedToMedia to instantly
+        // remove a tile without a full DB reload.
+        public void RemoveGameById(int gameId)
         {
-            GridScrollViewer.Visibility = isGrid ? Visibility.Visible : Visibility.Collapsed;
-            GamesListView.Visibility = isGrid ? Visibility.Collapsed : Visibility.Visible;
+            var vm = _allGames.FirstOrDefault(g => g.Id == gameId);
+            if (vm != null)
+            {
+                _allGames.Remove(vm);
+                vm.Dispose();
+                BuildPlatformSidebar();
+                ApplyFilters();
+            }
         }
 
         private async Task LoadGamesAsync()
@@ -85,7 +93,6 @@ namespace Vault.Views
                 BuildPlatformSidebar();
                 ApplyFilters();
 
-                // Fetch box art for games that are missing it
                 _ = FetchMissingBoxArtAsync(games);
             }
             finally
@@ -112,7 +119,6 @@ namespace Vault.Views
                     string? path = await boxArtService.GetBoxArtAsync(game);
                     if (string.IsNullOrEmpty(path)) continue;
 
-                    // Update DB
                     var dbGame = await db.Games.FindAsync(game.Id);
                     if (dbGame != null)
                     {
@@ -120,7 +126,6 @@ namespace Vault.Views
                         game.BoxArtPath = path;
                     }
 
-                    // Update the tile on the UI thread
                     var vm = _allGames.FirstOrDefault(v => v.Id == game.Id);
                     if (vm != null)
                         vm.BoxArtPath = path;
@@ -187,7 +192,6 @@ namespace Vault.Views
         {
             var filtered = _allGames.AsEnumerable();
 
-            // Status / downloaded filter
             if (_currentFilter != "All")
             {
                 if (_currentFilter == "Downloaded")
@@ -196,16 +200,13 @@ namespace Vault.Views
                     filtered = filtered.Where(g => g.Status == _currentFilter);
             }
 
-            // Platform filter
             if (_currentPlatform != "All")
                 filtered = filtered.Where(g => g.Platform == _currentPlatform);
 
-            // Search
             if (!string.IsNullOrWhiteSpace(_currentSearch))
                 filtered = filtered.Where(g =>
                     g.Title.Contains(_currentSearch, StringComparison.OrdinalIgnoreCase));
 
-            // Sort
             filtered = (SortCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() switch
             {
                 "Title Z-A" => filtered.OrderByDescending(g => g.Title),
@@ -218,7 +219,6 @@ namespace Vault.Views
 
             var list = filtered.ToList();
             GamesItemsControl.ItemsSource = list;
-            GamesListView.ItemsSource = list;
             TxtGameCount.Text = $"{list.Count} game{(list.Count != 1 ? "s" : "")}";
         }
 
@@ -262,7 +262,6 @@ namespace Vault.Views
 
         private void SortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Guard: _allGames may not be initialized yet during XAML load
             if (_allGames.Count == 0) return;
             ApplyFilters();
         }

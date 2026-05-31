@@ -8,6 +8,7 @@ namespace Vault.Database
         public DbSet<Game> Games { get; set; }
         public DbSet<MediaItem> MediaItems { get; set; }
         public DbSet<Episode> Episodes { get; set; }
+        public DbSet<Achievement> Achievements { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)
         {
@@ -15,6 +16,7 @@ namespace Vault.Database
                 System.Environment.GetFolderPath(
                     System.Environment.SpecialFolder.ApplicationData),
                 "Vault", "vault.db");
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dbPath)!);
             options.UseSqlite($"Data Source={dbPath}");
         }
 
@@ -54,10 +56,16 @@ namespace Vault.Database
                 "ALTER TABLE Games ADD COLUMN AchievementsEarned INTEGER",
                 "ALTER TABLE Games ADD COLUMN AchievementsTotal INTEGER",
                 "ALTER TABLE Games ADD COLUMN RetroAchievementsGameId INTEGER",
+                "ALTER TABLE Games ADD COLUMN SteamAppId INTEGER",
                 "ALTER TABLE Games ADD COLUMN LibraryType TEXT NOT NULL DEFAULT 'Owned'",
                 "ALTER TABLE Games ADD COLUMN ExePath TEXT",
                 "ALTER TABLE Games ADD COLUMN EmulatorPath TEXT",
                 "ALTER TABLE Games ADD COLUMN BoxArtPath TEXT",
+                "ALTER TABLE Games ADD COLUMN SourceFile TEXT",
+
+                // MediaItem columns added over time
+                "ALTER TABLE MediaItems ADD COLUMN WatchTimeMinutes INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE MediaItems ADD COLUMN RuntimeMinutes INTEGER NOT NULL DEFAULT 0",
             };
 
             foreach (var sql in columns)
@@ -69,6 +77,21 @@ namespace Vault.Database
                 }
                 catch { /* column already exists — ignore */ }
             }
+
+            // Achievements table — CREATE IF NOT EXISTS is idempotent
+            cmd.CommandText =
+                "CREATE TABLE IF NOT EXISTS Achievements (" +
+                "Id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "GameId INTEGER NOT NULL, " +
+                "ApiName TEXT NOT NULL DEFAULT '', " +
+                "DisplayName TEXT NOT NULL DEFAULT '', " +
+                "Description TEXT NOT NULL DEFAULT '', " +
+                "IconPath TEXT, " +
+                "IsUnlocked INTEGER NOT NULL DEFAULT 0, " +
+                "UnlockedAt TEXT, " +
+                "FOREIGN KEY(GameId) REFERENCES Games(Id) ON DELETE CASCADE" +
+                ")";
+            cmd.ExecuteNonQuery();
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -77,6 +100,12 @@ namespace Vault.Database
                 .HasOne(e => e.MediaItem)
                 .WithMany()
                 .HasForeignKey(e => e.MediaItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Achievement>()
+                .HasOne(a => a.Game)
+                .WithMany()
+                .HasForeignKey(a => a.GameId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

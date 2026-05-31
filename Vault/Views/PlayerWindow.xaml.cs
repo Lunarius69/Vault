@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -35,9 +36,17 @@ namespace Vault.Views
 
         private bool _nextShown = false;
         private bool _movedToNext = false;
+        private bool _closing = false;
 
         private CancellationTokenSource _fpCts = new();
-        private const double NextTriggerSec = 90.0;
+
+        // Watch time tracking — records when the current episode started playing
+        private DateTime? _episodePlayStartTime;
+
+        // Minimize/restore fix — WPF can restore to Normal when Maximized+None was minimized
+        private WindowState _stateBeforeMinimize = WindowState.Maximized;
+        private bool _wasMinimized = false;
+        private bool _overlayHiddenForMinimize = false;
 
         // ------------------------------------------------------------------ //
         //  Constructor
@@ -55,7 +64,7 @@ namespace Vault.Views
             Closing += OnClosing;
             LocationChanged += (s, e) => PositionOverlay();
             SizeChanged += (s, e) => PositionOverlay();
-            StateChanged += (s, e) => PositionOverlay();
+            StateChanged += OnStateChanged;
         }
 
         // ------------------------------------------------------------------ //
@@ -93,6 +102,8 @@ namespace Vault.Views
             _overlay.VolumeChanged += v => { try { if (_player != null) _player.Volume = v; } catch { } };
             _overlay.MouseActivity += OnMouseActivity;
             _overlay.FullscreenRequested += ToggleFullscreen;
+            _overlay.AddSubtitleRequested += OnAddSubtitleRequested;
+            _overlay.AudioTrackChangeRequested += OnAudioTrackChangeRequested;
 
             _uiTimer.Tick += UiTimer_Tick;
             _hideTimer.Tick += HideTimer_Tick;
@@ -112,13 +123,69 @@ namespace Vault.Views
             _overlay.Height = ActualHeight;
         }
 
+        private void OnStateChanged(object? sender, EventArgs e)
+        {
+            if (WindowState == WindowState.Minimized)
+            {
+                _wasMinimized = true;
+                if (_overlay != null && _overlay.IsVisible)
+                {
+                    _overlayHiddenForMinimize = true;
+                    _overlay.Hide();
+                }
+                return;
+            }
+
+            if (_wasMinimized)
+            {
+                _wasMinimized = false;
+                // WPF bug: restoring a WindowStyle.None+Maximized window can land in Normal state
+                if (_stateBeforeMinimize == WindowState.Maximized && WindowState != WindowState.Maximized)
+                {
+                    WindowStyle = WindowStyle.None;
+                    WindowState = WindowState.Maximized;
+                    return; // StateChanged fires again; overlay is restored in that next call
+                }
+                // WPF correctly restored to Maximized — ensure WindowStyle stayed None
+                if (_stateBeforeMinimize == WindowState.Maximized)
+                    WindowStyle = WindowStyle.None;
+            }
+            else
+            {
+                _stateBeforeMinimize = WindowState;
+            }
+
+            // Restore overlay after the window is in its final state
+            if (_overlayHiddenForMinimize)
+            {
+                _overlayHiddenForMinimize = false;
+                _overlay?.Show();
+                OnMouseActivity(); // show controls and restart the auto-hide timer
+            }
+
+            // Defer until after layout pass so ActualWidth/Height/Left/Top reflect
+            // the final Maximized state rather than the mid-transition snapshot.
+            Dispatcher.InvokeAsync(PositionOverlay, DispatcherPriority.Background);
+        }
+
         // ------------------------------------------------------------------ //
         //  Playback
         // ------------------------------------------------------------------ //
+        private async Task EnsureWatchingStatusAsync()
+        {
+            if (_mediaItem.WatchStatus is "Watching" or "Completed") return;
+            using var db = new VaultContext();
+            var dbItem = await db.MediaItems.FindAsync(_mediaItem.Id);
+            if (dbItem == null) return;
+            dbItem.WatchStatus = _mediaItem.WatchStatus = "Watching";
+            await db.SaveChangesAsync();
+        }
+
         private async Task PlayCurrentAsync()
         {
             if (_playlistIndex < 0 || _playlistIndex >= _playlist.Count) return;
             var ep = CurrentEpisode;
+            _ = EnsureWatchingStatusAsync();
 
             // Resolve file path — DB first, then folder scan
             if (string.IsNullOrEmpty(ep.FilePath) || !File.Exists(ep.FilePath))
@@ -164,13 +231,16 @@ namespace Vault.Views
 
             var nextEp = _playlistIndex + 1 < _playlist.Count
                 ? _playlist[_playlistIndex + 1] : null;
-            _overlay?.SetEpisodeInfo(ep.SeasonNumber, ep.EpisodeNumber, ep.Title ?? "", nextEp);
+            _overlay?.SetEpisodeInfo(ep.SeasonNumber, ep.EpisodeNumber, ep.Title ?? "", nextEp, ep.Id < 0);
 
             try
             {
                 using var media = new LibVLCSharp.Shared.Media(_libVlc!, new Uri(ep.FilePath));
                 _player!.Media = media;
                 _player.Play();
+
+                // Start tracking watch time for this episode
+                _episodePlayStartTime = DateTime.Now;
             }
             catch (Exception ex)
             {
@@ -189,15 +259,41 @@ namespace Vault.Views
                 catch { }
             }
 
-            // Wait for Length to be available then update highlights
+            // Wait for Length to be available then update highlights + track menus
             await Task.Delay(1000);
             Dispatcher.Invoke(UpdateHighlights);
+            _ = AutoEnableSubtitlesAsync();
+            _ = PopulateAudioTracksAsync();
+
+            // Persist movie runtime so the tile progress bar can calculate percentage
+            if (!_closing && ep.Id < 0 && _mediaItem.RuntimeMinutes == 0)
+            {
+                long lenMs = 0;
+                try { lenMs = _player?.Length ?? 0; } catch { }
+                if (lenMs > 0)
+                {
+                    int runtimeMin = (int)(lenMs / 60000);
+                    try
+                    {
+                        using var db = new VaultContext();
+                        var dbItem = await db.MediaItems.FindAsync(_mediaItem.Id);
+                        if (dbItem != null)
+                        {
+                            dbItem.RuntimeMinutes = runtimeMin;
+                            _mediaItem.RuntimeMinutes = runtimeMin;
+                            await db.SaveChangesAsync();
+                        }
+                    }
+                    catch { }
+                }
+            }
         }
 
         private void OnEndReached(object? sender, EventArgs e)
         {
             Dispatcher.InvokeAsync(async () =>
             {
+                await AccumulateWatchTimeAsync();
                 await MarkEpisodeWatchedDirectlyAsync(CurrentEpisode);
                 if (_playlistIndex + 1 < _playlist.Count)
                 {
@@ -210,7 +306,19 @@ namespace Vault.Views
 
         private async Task MarkEpisodeWatchedDirectlyAsync(Episode ep)
         {
-            if (ep.Id < 0) return;
+            // Movie — mark MediaItem as Completed and clear resume position
+            if (ep.Id < 0)
+            {
+                using var movieDb = new VaultContext();
+                var movieItem = await movieDb.MediaItems.FindAsync(_mediaItem.Id);
+                if (movieItem != null)
+                {
+                    movieItem.WatchStatus = _mediaItem.WatchStatus = "Completed";
+                    movieItem.ResumePositionSeconds = _mediaItem.ResumePositionSeconds = 0;
+                    await movieDb.SaveChangesAsync();
+                }
+                return;
+            }
             using var db = new VaultContext();
             var dbEp = await db.Episodes.FindAsync(ep.Id);
             if (dbEp != null)
@@ -232,6 +340,38 @@ namespace Vault.Views
                 }
                 await db.SaveChangesAsync();
             }
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Watch time accumulation
+        // ------------------------------------------------------------------ //
+
+        /// <summary>
+        /// Calculates how many minutes have elapsed since playback started for
+        /// the current episode and adds them to MediaItem.WatchTimeMinutes in the DB.
+        /// Call this before every episode advance and on window close.
+        /// </summary>
+        private async Task AccumulateWatchTimeAsync()
+        {
+            if (_episodePlayStartTime == null) return;
+
+            long elapsedMinutes = (long)(DateTime.Now - _episodePlayStartTime.Value).TotalMinutes;
+            _episodePlayStartTime = null; // reset so we don't double-count
+
+            if (elapsedMinutes <= 0) return;
+
+            try
+            {
+                using var db = new VaultContext();
+                var dbItem = await db.MediaItems.FindAsync(_mediaItem.Id);
+                if (dbItem != null)
+                {
+                    dbItem.WatchTimeMinutes += elapsedMinutes;
+                    _mediaItem.WatchTimeMinutes = dbItem.WatchTimeMinutes;
+                    await db.SaveChangesAsync();
+                }
+            }
+            catch { }
         }
 
         // ------------------------------------------------------------------ //
@@ -319,8 +459,14 @@ namespace Vault.Views
                 _overlay?.ShowSkipIntro(inIntro);
 
                 double remaining = totSec - posSec;
+                // Fallback trigger when fingerprinting hasn't detected OutroStart yet.
+                // Anime has long outro sequences (ED + omake), live-action TV has short credits,
+                // movies shorter still. Fingerprint-detected OutroStart always takes priority.
+                double fallback = _mediaItem.MediaType is "Anime" or "AnimeMovie" ? 180
+                                : ep.Id < 0 ? 90   // movie
+                                : 120;             // TV show / animated series
                 bool showNext = (ep.OutroStart > 0 && posSec >= ep.OutroStart) ||
-                                (remaining <= NextTriggerSec && remaining > 5);
+                                (remaining <= fallback && remaining > 5);
 
                 if (showNext && !_nextShown && _playlistIndex + 1 < _playlist.Count)
                 {
@@ -366,7 +512,6 @@ namespace Vault.Views
             _overlay?.ShowControls(false);
         }
 
-        
         private void TogglePlayPause()
         {
             try
@@ -408,6 +553,7 @@ namespace Vault.Views
             if (_movedToNext) return;
             _movedToNext = true;
             _overlay?.ShowNextEpisode(false);
+            await AccumulateWatchTimeAsync();
             await SaveProgressAsync();
             if (_playlistIndex + 1 >= _playlist.Count) { Close(); return; }
             _playlistIndex++;
@@ -417,6 +563,7 @@ namespace Vault.Views
         private async Task PrevEpisodeAsync()
         {
             if (_playlistIndex <= 0) return;
+            await AccumulateWatchTimeAsync();
             await SaveProgressAsync();
             _playlistIndex--;
             await PlayCurrentAsync();
@@ -460,13 +607,32 @@ namespace Vault.Views
         private async Task SaveProgressAsync()
         {
             var ep = CurrentEpisode;
-            if (_player == null || ep.Id < 0) return;
+            if (_player == null) return;
 
             long posMs = 0;
             try { posMs = _player.Time; } catch { return; }
             if (posMs <= 0) return;
 
             long posSec = posMs / 1000;
+
+            // Movie path — ep.Id is -1 (fake episode), save to MediaItem directly
+            if (ep.Id < 0)
+            {
+                long movieRuntime = ep.RuntimeMinutes > 0 ? ep.RuntimeMinutes * 60L : 7200;
+                bool movieDone = posSec >= movieRuntime * 0.85;
+                using var movieDb = new VaultContext();
+                var movieItem = await movieDb.MediaItems.FindAsync(_mediaItem.Id);
+                if (movieItem != null)
+                {
+                    movieItem.ResumePositionSeconds = _mediaItem.ResumePositionSeconds =
+                        movieDone ? 0 : posSec;
+                    if (movieDone)
+                        movieItem.WatchStatus = _mediaItem.WatchStatus = "Completed";
+                    await movieDb.SaveChangesAsync();
+                }
+                return;
+            }
+
             long runtimeSec = ep.RuntimeMinutes > 0 ? ep.RuntimeMinutes * 60L : 1440;
             bool finished = posSec >= runtimeSec * 0.85;
 
@@ -501,13 +667,109 @@ namespace Vault.Views
         }
 
         // ------------------------------------------------------------------ //
+        //  Subtitles
+        // ------------------------------------------------------------------ //
+        private async Task AutoEnableSubtitlesAsync()
+        {
+            await Task.Delay(1500);
+            if (_player == null || _closing) return;
+            try
+            {
+                var tracks = _player.SpuDescription.Where(t => t.Id != -1).ToArray();
+                if (tracks.Length > 0)
+                    _player.SetSpu(tracks[0].Id);
+            }
+            catch { }
+        }
+
+        private void OnAddSubtitleRequested()
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select subtitle file",
+                Filter = "Subtitle files|*.srt;*.ass;*.ssa;*.sub;*.vtt;*.idx|All files|*.*"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try { _player?.AddSlave(MediaSlaveType.Subtitle, new Uri(dlg.FileName).AbsoluteUri, true); }
+            catch { }
+        }
+
+        private async Task PopulateAudioTracksAsync()
+        {
+            await Task.Delay(1200);
+            if (_player == null || _overlay == null || _closing) return;
+
+            var tracks = Array.Empty<(int Id, string Name)>();
+            int currentId = -1;
+            try
+            {
+                tracks = _player.AudioTrackDescription
+                    .Select(t => (Id: t.Id, Name: t.Name ?? "")).ToArray();
+                currentId = _player.AudioTrack;
+            }
+            catch { return; }
+
+            var settings = AppSettings.Load();
+            string pref = settings.PreferredAudioLanguage;
+
+            if (!string.IsNullOrEmpty(pref) && tracks.Length > 0)
+            {
+                bool found = false;
+                foreach (var t in tracks)
+                {
+                    if (t.Id != -1 && (
+                        t.Name.Contains(pref, StringComparison.OrdinalIgnoreCase) ||
+                        pref.Contains(t.Name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        Debug.WriteLine($"[Audio] Selected '{t.Name}' (matched preference '{pref}')");
+                        try { _player.SetAudioTrack(t.Id); currentId = t.Id; } catch { }
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    string fallback = tracks.Length > 0 ? tracks[0].Name : "none";
+                    Debug.WriteLine($"[Audio] Preferred '{pref}' not found, fell back to default: {fallback}");
+                }
+            }
+
+            Dispatcher.Invoke(() => _overlay.SetAudioTracks(tracks, currentId, pref));
+        }
+
+        private void OnAudioTrackChangeRequested(int trackId, string trackName, bool setAsDefault)
+        {
+            try { if (_player != null) _player.SetAudioTrack(trackId); } catch { }
+
+            var settings = AppSettings.Load();
+
+            if (setAsDefault)
+            {
+                settings.PreferredAudioLanguage = trackId == -1 ? "" : trackName;
+                settings.Save();
+                Debug.WriteLine($"[Audio] Default set to: '{settings.PreferredAudioLanguage}'");
+            }
+
+            if (_overlay != null && _player != null)
+            {
+                try
+                {
+                    (int Id, string Name)[] tuples = _player.AudioTrackDescription
+                        .Select(t => (Id: t.Id, Name: t.Name ?? "")).ToArray();
+                    _overlay.SetAudioTracks(tuples, trackId, settings.PreferredAudioLanguage);
+                }
+                catch { }
+            }
+        }
+
+        // ------------------------------------------------------------------ //
         //  Fingerprinting
         // ------------------------------------------------------------------ //
         private async Task StartFingerprintingAsync()
         {
             _fpCts = new CancellationTokenSource();
             var svc = new FingerprintService();
-            await svc.ProcessShowAsync(_mediaItem.Id, _playlist, _fpCts.Token);
+            await svc.ProcessShowAsync(_mediaItem.Id, _playlist, _playlistIndex, _fpCts.Token);
             Dispatcher.Invoke(UpdateHighlights);
         }
 
@@ -516,10 +778,12 @@ namespace Vault.Views
         // ------------------------------------------------------------------ //
         private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
+            _closing = true;
             _fpCts.Cancel();
             _uiTimer.Stop();
             _hideTimer.Stop();
             _overlay?.Close();
+            await AccumulateWatchTimeAsync();
             await SaveProgressAsync();
             _player?.Stop();
             _player?.Dispose();

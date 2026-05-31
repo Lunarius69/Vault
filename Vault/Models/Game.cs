@@ -10,6 +10,7 @@ namespace Vault.Models
         public int? Year { get; set; }
         public double? FileSizeGB { get; set; }
         public string Status { get; set; } = "Not Started";
+        public string? SourceFile { get; set; }
         public string LibraryType { get; set; } = "Owned";
         public string? ExePath { get; set; }
         public string? EmulatorPath { get; set; }
@@ -32,5 +33,12 @@ namespace Vault.Models
         public int? AchievementsEarned { get; set; }
         public int? AchievementsTotal { get; set; }
         public int? RetroAchievementsGameId { get; set; }
+
+        // Cached Steam AppID — resolved automatically from store search or steam_appid.txt
+        public int? SteamAppId { get; set; }
+
+        // Source / emulator info from spreadsheet
+        public string? Notes { get; set; }
+        public string? Emulator { get; set; }
     }
 }

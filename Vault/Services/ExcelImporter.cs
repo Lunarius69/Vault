@@ -24,21 +24,14 @@ namespace Vault.Services
         private readonly VaultContext _db;
         private readonly BoxArtService _boxArtService;
 
-        // ── Sheets that represent a single "Complete Library" collection entry ──
-        private static readonly HashSet<string> CompleteLibrarySheets = new(StringComparer.OrdinalIgnoreCase)
-        {
-        };
-
         // ── Sheets to skip entirely ──────────────────────────────────────────────
         private static readonly HashSet<string> SkipSheets = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Summary", "SSD Games", "Storage Forecast", "Year-by-Year Timeline",
+            "Summary", "Storage Forecast", "Year-by-Year Timeline",
             "Assumptions", "Wishlist"
         };
 
-        // ── Horror game genres ───────────────────────────────────────────────────
-        // All entries whose genre matches any of these will be skipped at import.
-        // Also catches games with no genre that match known horror titles below.
+        // ── Horror game genres/titles ────────────────────────────────────────────
         private static readonly HashSet<string> HorrorGenres = new(StringComparer.OrdinalIgnoreCase)
         {
             "Survival Horror",
@@ -50,7 +43,6 @@ namespace Vault.Services
             "Action / Psychological Horror",
         };
 
-        // Games with no genre column populated but known to be horror
         private static readonly HashSet<string> HorrorTitles = new(StringComparer.OrdinalIgnoreCase)
         {
             "Resident Evil (Remake)",
@@ -64,53 +56,28 @@ namespace Vault.Services
             "Fatal Frame: Crimson Butterfly Remake",
         };
 
-        // ── Platform priority for duplicate resolution ───────────────────────────
-        // When the same title exists on multiple platforms, the entry on the
-        // highest-priority platform is kept; all others are skipped.
-        // Higher number = higher priority (more modern / better version).
-        private static readonly Dictionary<string, int> PlatformPriority =
-            new(StringComparer.OrdinalIgnoreCase)
-            {
-                ["Atari 2600"] = 1,
-                ["NES"] = 2,
-                ["Sega Master System"] = 3,
-                ["Game Boy & GBC"] = 4,
-                ["SNES"] = 5,
-                ["Sega Genesis"] = 6,
-                ["Game Boy Advance"] = 7,
-                ["Nintendo 64"] = 8,
-                ["Sega Saturn"] = 9,
-                ["Sega Dreamcast"] = 10,
-                ["PlayStation 1"] = 11,
-                ["PlayStation 2"] = 12,
-                ["Xbox Original"] = 13,
-                ["GameCube"] = 14,
-                ["Nintendo DS"] = 15,
-                ["PSP"] = 16,
-                ["Wii"] = 17,
-                ["Xbox 360"] = 18,
-                ["PlayStation 3"] = 19,
-                ["Nintendo 3DS"] = 20,
-                ["PS Vita"] = 21,
-                ["Wii U"] = 22,
-                ["Nintendo Switch"] = 23,
-                ["Xbox One"] = 24,
-                ["PlayStation 4"] = 25,
-                ["Nintendo Switch 2"] = 26,
-                ["PlayStation 5"] = 27,
-                ["PC Games"] = 28,
-                ["PC"] = 28,
-                ["Live Service"] = 29,
-            };
+        // ── Titles that match a horror genre but should still be imported ────────
+        // Alan Wake games are action/thriller — not horror — but their genre
+        // column happens to read "Survival Horror" in the spreadsheet.
+        private static readonly HashSet<string> HorrorExceptions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Alan Wake Remastered",
+            "Alan Wake's American Nightmare",
+            "Alan Wake 2",
+        };
 
-        // ── Titles where every platform version is intentionally distinct ────────
-        // These will NOT be deduplicated — every platform entry is kept as-is.
-        // (e.g. Aladdin on Genesis and SNES are genuinely different games)
-        // Add titles here when you want to override the duplicate removal logic.
-        private static readonly HashSet<string> AllowMultiplePlatforms =
+        // ── Platform name normaliser for SSD Games sheet ─────────────────────────
+        private static readonly Dictionary<string, string> SsdPlatformMap =
             new(StringComparer.OrdinalIgnoreCase)
             {
-                // intentionally empty — all duplicates currently removed by platform priority
+                ["PS5"] = "PlayStation 5",
+                ["PS4"] = "PlayStation 4",
+                ["Switch 2"] = "Nintendo Switch 2",
+                ["Switch"] = "Nintendo Switch",
+                ["PC"] = "PC Games",
+                ["Live Service"] = "Live Service",
+                ["Xbox Series X"] = "Xbox Series X",
+                ["Xbox One"] = "Xbox One",
             };
 
         public ExcelImporter(VaultContext db, BoxArtService boxArtService)
@@ -121,19 +88,65 @@ namespace Vault.Services
         }
 
         // ────────────────────────────────────────────────────────────────────────
+        // CleanupMismatchedGamesAsync
+        // ────────────────────────────────────────────────────────────────────────
+        public static async Task<int> CleanupMismatchedGamesAsync()
+        {
+            using var db = new VaultContext();
+
+            var badGames = await db.Games
+                .Where(g => !g.IsWishlist)
+                .ToListAsync();
+
+            var toRemove = badGames
+                .Where(g => IsMediaSheet(g.Platform))
+                .ToList();
+
+            if (toRemove.Count == 0) return 0;
+
+            db.Games.RemoveRange(toRemove);
+            await db.SaveChangesAsync();
+            return toRemove.Count;
+        }
+
+        // ────────────────────────────────────────────────────────────────────────
         // ImportGamesAsync
         // ────────────────────────────────────────────────────────────────────────
         public async Task<ImportResult> ImportGamesAsync(string filePath)
         {
             var result = new ImportResult();
+
             if (!File.Exists(filePath))
             {
                 result.Errors.Add("File not found: " + filePath);
                 return result;
             }
 
-            // Build a deduplicated candidate list from the whole workbook first,
-            // so that cross-sheet duplicate resolution works correctly.
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            if (ext != ".xlsx" && ext != ".xlsm")
+            {
+                result.Errors.Add($"Unsupported file format '{ext}'. Please convert to .xlsx first.");
+                return result;
+            }
+
+            // Guard: refuse media spreadsheets
+            using (var package = new ExcelPackage(new FileInfo(filePath)))
+            {
+                var sheetNames = package.Workbook.Worksheets.Select(s => s.Name).ToList();
+                bool hasOnlyMediaSheets = sheetNames.All(n =>
+                    IsMediaSheet(n) || SkipSheets.Contains(n));
+
+                if (hasOnlyMediaSheets)
+                {
+                    result.Errors.Add(
+                        "This file appears to be a media library, not a games library. " +
+                        "Use 'Import Media' instead.");
+                    return result;
+                }
+            }
+
+            await CleanupMismatchedGamesAsync();
+
             var candidates = CollectCandidates(filePath, result);
 
             foreach (var game in candidates)
@@ -145,20 +158,16 @@ namespace Vault.Services
                 result.GamesImported++;
             }
 
-            // Import Wishlist sheet (never deduplicated against main library)
             await ImportWishlistAsync(filePath, result);
-
             await _db.SaveChangesAsync();
             return result;
         }
 
         // ────────────────────────────────────────────────────────────────────────
         // FetchMissingArtAsync
-        // Fetches box art + hero for every game that is missing either.
-        // Call this after ImportGamesAsync, or on demand from the UI.
         // ────────────────────────────────────────────────────────────────────────
         public async Task<int> FetchMissingArtAsync(
-    System.Threading.CancellationToken ct = default)
+            System.Threading.CancellationToken ct = default)
         {
             var missing = await _db.Games
                 .Where(g =>
@@ -174,7 +183,6 @@ namespace Vault.Services
                 try
                 {
                     string? boxArt = await _boxArtService.GetBoxArtAsync(game, ct);
-
                     if (boxArt != null)
                     {
                         game.BoxArtPath = boxArt;
@@ -195,27 +203,44 @@ namespace Vault.Services
         }
 
         // ────────────────────────────────────────────────────────────────────────
-        // ImportMediaAsync  (unchanged logic, result type corrected)
+        // ImportMediaAsync
         // ────────────────────────────────────────────────────────────────────────
         public async Task<ImportResult> ImportMediaAsync(string filePath)
         {
             var result = new ImportResult();
+
             if (!File.Exists(filePath))
             {
                 result.Errors.Add("File not found: " + filePath);
                 return result;
             }
 
+            using (var package = new ExcelPackage(new FileInfo(filePath)))
+            {
+                var sheetNames = package.Workbook.Worksheets.Select(s => s.Name).ToList();
+                bool hasOnlyGameSheets = sheetNames.All(n =>
+                    !IsMediaSheet(n) || SkipSheets.Contains(n));
+
+                if (hasOnlyGameSheets)
+                {
+                    result.Errors.Add(
+                        "This file appears to be a games library, not a media library. " +
+                        "Use 'Import Games' instead.");
+                    return result;
+                }
+            }
+
             var existing = await _db.MediaItems.ToListAsync();
             _db.MediaItems.RemoveRange(existing);
             await _db.SaveChangesAsync();
 
-            using var package = new ExcelPackage(new FileInfo(filePath));
+            using var pkg = new ExcelPackage(new FileInfo(filePath));
 
-            foreach (var sheet in package.Workbook.Worksheets)
+            foreach (var sheet in pkg.Workbook.Worksheets)
             {
                 if (sheet.Name == "Summary" || sheet.Name == "Storage Estimate") continue;
                 if (sheet.Dimension == null) continue;
+                if (!IsMediaSheet(sheet.Name)) continue;
 
                 string mediaType = DetectMediaType(sheet.Name);
 
@@ -272,45 +297,80 @@ namespace Vault.Services
         // Private helpers
         // ════════════════════════════════════════════════════════════════════════
 
-        /// <summary>
-        /// Reads every non-skipped sheet, filters horror, then resolves
-        /// cross-sheet duplicates by platform priority.
-        /// Returns the final de-duplicated list ready for DB insertion.
-        /// </summary>
         private List<Game> CollectCandidates(string filePath, ImportResult result)
         {
             using var package = new ExcelPackage(new FileInfo(filePath));
 
-            // Step 1 — read all rows from all sheets into a flat list
-            var all = new List<(string platform, string title, Game game)>();
+            var final = new List<Game>();
 
+            // ── Pass 1: SSD Games sheet — always wins over platform sheets ────────
+            // Process this first so its (platform, title) keys populate `seen`.
+            // Any game from another sheet that matches an SSD entry is skipped,
+            // giving SSD data (which has HLTB times and cleaner metadata) priority.
+            var seen = new HashSet<(string platform, string title)>(
+                new PlatformTitleComparer());
+
+            var ssdSheet = package.Workbook.Worksheets
+                .FirstOrDefault(s => s.Name.Equals("SSD Games",
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (ssdSheet?.Dimension != null)
+            {
+                for (int row = 2; row <= ssdSheet.Dimension.Rows; row++)
+                {
+                    string rawConsole = ssdSheet.Cells[row, 2].Text.Trim();
+                    string title = ssdSheet.Cells[row, 3].Text.Trim();
+                    if (string.IsNullOrWhiteSpace(title)) continue;
+
+                    string platform = SsdPlatformMap.TryGetValue(rawConsole, out string? mapped)
+                        ? mapped : rawConsole;
+
+                    string genre = ssdSheet.Cells[row, 4].Text.Trim();
+
+                    if (IsHorror(title, genre)) { result.HorrorSkipped++; continue; }
+
+                    var key = (platform.ToLowerInvariant(), title.ToLowerInvariant());
+                    if (seen.Contains(key)) { result.DuplicatesSkipped++; continue; }
+                    seen.Add(key);
+
+                    double? hltbMain = ParseDouble(ssdSheet.Cells[row, 8].Text);
+                    double? hltbSides = ParseDouble(ssdSheet.Cells[row, 9].Text);
+                    double? hltbComplete = ParseDouble(ssdSheet.Cells[row, 10].Text);
+                    string? note = NullIfEmpty(ssdSheet.Cells[row, 7].Text.Trim());
+
+                    final.Add(new Game
+                    {
+                        Title = title,
+                        Platform = platform,
+                        Year = ParseYear(ssdSheet.Cells[row, 5].Text),
+                        FileSizeGB = ParseSize(ssdSheet.Cells[row, 6].Text),
+                        Genre = genre,
+                        Status = "Not Started",
+                        LibraryType = "Owned",
+                        IsWishlist = false,
+                        IsDownloaded = false,
+                        Notes = note,
+                        HltbMain = hltbMain,
+                        HltbMainSides = hltbSides,
+                        HltbComplete = hltbComplete,
+                    });
+                }
+            }
+
+            // ── Pass 2: All other sheets ──────────────────────────────────────────
+            // Skip any (platform, title) already added from SSD Games.
             foreach (var sheet in package.Workbook.Worksheets)
             {
                 if (SkipSheets.Contains(sheet.Name)) continue;
+                if (IsMediaSheet(sheet.Name)) continue;
+                if (sheet.Name.Equals("SSD Games", StringComparison.OrdinalIgnoreCase)) continue;
                 if (sheet.Dimension == null) continue;
 
-                string platform = sheet.Name;
+                string sheetPlatform = sheet.Name;
 
-                // Complete Library shortcut
-                if (CompleteLibrarySheets.Contains(platform))
-                {
-                    string sizeText = sheet.Cells[2, 4].Text.Trim();
-                    all.Add((platform, $"{platform} — Complete Library", new Game
-                    {
-                        Title = $"{platform} — Complete Library",
-                        Platform = platform,
-                        LibraryType = "Complete Library",
-                        FileSizeGB = ParseSize(sizeText),
-                        Status = "Not Started",
-                        IsWishlist = false,
-                        IsDownloaded = false
-                    }));
-                    continue;
-                }
-
-                // Discover columns
                 int titleCol = -1, yearCol = -1, sizeCol = -1, statusCol = -1,
-                    genreCol = -1, platformCol = -1, noteCol = -1;
+                    genreCol = -1, platformCol = -1, noteCol = -1, emulatorCol = -1,
+                    hltbMainCol = -1, hltbSidesCol = -1, hltbCompleteCol = -1;
 
                 for (int c = 1; c <= sheet.Dimension.Columns; c++)
                 {
@@ -323,6 +383,10 @@ namespace Vault.Services
                     else if (h == "genre") genreCol = c;
                     else if (h == "platform") platformCol = c;
                     else if (h == "note" || h == "notes") noteCol = c;
+                    else if (h == "emulator") emulatorCol = c;
+                    else if (h.Contains("main story")) hltbMainCol = c;
+                    else if (h.Contains("main + side") || h.Contains("main+side")) hltbSidesCol = c;
+                    else if (h.Contains("completionist")) hltbCompleteCol = c;
                 }
 
                 if (titleCol == -1) continue;
@@ -336,26 +400,29 @@ namespace Vault.Services
                         title.StartsWith("Download from"))
                         continue;
 
-                    string gamePlatform = platformCol > 0
-                        ? sheet.Cells[row, platformCol].Text.Trim()
-                        : platform;
-                    if (string.IsNullOrWhiteSpace(gamePlatform))
-                        gamePlatform = platform;
+                    string gamePlatform = sheetPlatform;
 
-                    // ── Horror filter ────────────────────────────────────────
                     string genre = genreCol > 0
                         ? sheet.Cells[row, genreCol].Text.Trim() : "";
 
-                    if (IsHorror(title, genre))
-                    {
-                        result.HorrorSkipped++;
-                        continue;
-                    }
+                    if (IsHorror(title, genre)) { result.HorrorSkipped++; continue; }
+
+                    // Skip if SSD Games already added this (platform, title)
+                    var key = (gamePlatform.ToLowerInvariant(), title.ToLowerInvariant());
+                    if (seen.Contains(key)) { result.DuplicatesSkipped++; continue; }
+                    seen.Add(key);
 
                     string rawStatus = statusCol > 0
                         ? sheet.Cells[row, statusCol].Text.Trim() : "";
+                    string? notes = noteCol > 0
+                        ? NullIfEmpty(sheet.Cells[row, noteCol].Text.Trim()) : null;
+                    string? emulator = emulatorCol > 0
+                        ? NullIfEmpty(sheet.Cells[row, emulatorCol].Text.Trim()) : null;
+                    double? hltbMain = hltbMainCol > 0 ? ParseDouble(sheet.Cells[row, hltbMainCol].Text) : null;
+                    double? hltbSides = hltbSidesCol > 0 ? ParseDouble(sheet.Cells[row, hltbSidesCol].Text) : null;
+                    double? hltbComplete = hltbCompleteCol > 0 ? ParseDouble(sheet.Cells[row, hltbCompleteCol].Text) : null;
 
-                    all.Add((gamePlatform, title, new Game
+                    final.Add(new Game
                     {
                         Title = title,
                         Platform = gamePlatform,
@@ -365,35 +432,14 @@ namespace Vault.Services
                         Status = NormalizeStatus(rawStatus),
                         LibraryType = "Owned",
                         IsWishlist = false,
-                        IsDownloaded = false
-                    }));
+                        IsDownloaded = false,
+                        Notes = notes,
+                        Emulator = emulator,
+                        HltbMain = hltbMain,
+                        HltbMainSides = hltbSides,
+                        HltbComplete = hltbComplete,
+                    });
                 }
-            }
-
-            // Step 2 — deduplicate by title, keeping the highest-priority platform
-            var final = new List<Game>();
-            var byTitle = all
-                .GroupBy(x => x.title.Trim().ToLowerInvariant())
-                .ToList();
-
-            foreach (var group in byTitle)
-            {
-                var entries = group.ToList();
-
-                if (entries.Count == 1 || AllowMultiplePlatforms.Contains(entries[0].title))
-                {
-                    final.AddRange(entries.Select(e => e.game));
-                    continue;
-                }
-
-                // Keep the entry with the highest platform priority
-                var best = entries
-                    .OrderByDescending(e =>
-                        PlatformPriority.TryGetValue(e.platform, out int p) ? p : 0)
-                    .First();
-
-                final.Add(best.game);
-                result.DuplicatesSkipped += entries.Count - 1;
             }
 
             return final;
@@ -448,20 +494,37 @@ namespace Vault.Services
             }
         }
 
-        // ── Horror check ─────────────────────────────────────────────────────────
-        private static bool IsHorror(string title, string genre) =>
-            (!string.IsNullOrEmpty(genre) && HorrorGenres.Contains(genre)) ||
-            HorrorTitles.Contains(title);
+        // ── Horror check — returns true if the game should be filtered out ───────
+        // Exception list overrides both genre and title filters so that games
+        // like Alan Wake (tagged "Survival Horror" in the sheet but not actually
+        // horror) are always imported.
+        private static bool IsHorror(string title, string genre)
+        {
+            if (HorrorExceptions.Contains(title)) return false;
+            return (!string.IsNullOrEmpty(genre) && HorrorGenres.Contains(genre)) ||
+                   HorrorTitles.Contains(title);
+        }
 
-        // ── Status normalizer ────────────────────────────────────────────────────
+        // ── Media sheet detector ─────────────────────────────────────────────────
+        private static bool IsMediaSheet(string sheetName)
+        {
+            string s = sheetName.ToLower();
+            return s.Contains("movie") ||
+                   s.Contains("anime") ||
+                   s.Contains("animated") ||
+                   s.Contains("western") ||
+                   s.Contains("show") ||
+                   s.Contains("series") ||
+                   s.Contains("tv");
+        }
+
         private static string NormalizeStatus(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw)) return "Not Started";
             return raw.Trim().ToLower() switch
             {
                 "playing" or "in progress" => "Playing",
-                "completed" or "complete" or
-                "finished" => "Completed",
+                "completed" or "complete" or "finished" => "Completed",
                 "on hold" or "paused" => "On Hold",
                 "dropped" => "Dropped",
                 "released" => "Not Started",
@@ -469,7 +532,6 @@ namespace Vault.Services
             };
         }
 
-        // ── Media type detector ──────────────────────────────────────────────────
         private static string DetectMediaType(string sheetName)
         {
             string s = sheetName.ToLower();
@@ -481,7 +543,6 @@ namespace Vault.Services
             return "Show";
         }
 
-        // ── Parsers ──────────────────────────────────────────────────────────────
         private static int? ParseYear(string text)
         {
             if (int.TryParse(text.Trim(), out int y) && y > 1900 && y < 2100) return y;
@@ -505,10 +566,37 @@ namespace Vault.Services
             return null;
         }
 
+        private static double? ParseDouble(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return null;
+            if (double.TryParse(text.Trim(),
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out double val))
+                return val;
+            return null;
+        }
+
         private static int? ParseInt(string text)
         {
             if (int.TryParse(text.Trim(), out int v)) return v;
             return null;
         }
+
+        private static string? NullIfEmpty(string? text) =>
+            string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    // ── Helper: case-insensitive (platform, title) tuple comparer ────────────────
+    internal class PlatformTitleComparer : IEqualityComparer<(string platform, string title)>
+    {
+        public bool Equals((string platform, string title) x, (string platform, string title) y)
+            => string.Equals(x.platform, y.platform, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(x.title, y.title, StringComparison.OrdinalIgnoreCase);
+
+        public int GetHashCode((string platform, string title) obj)
+            => HashCode.Combine(
+                obj.platform?.ToLowerInvariant(),
+                obj.title?.ToLowerInvariant());
     }
 }

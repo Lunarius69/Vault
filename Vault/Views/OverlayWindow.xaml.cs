@@ -1,8 +1,12 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using Vault.Models;
 
 namespace Vault.Views
@@ -35,12 +39,19 @@ namespace Vault.Views
         public event Action<int>? VolumeChanged;
         public event Action? MouseActivity;
         public event Action? FullscreenRequested;
+        public event Action? AddSubtitleRequested;
+        public event Action<int, string, bool>? AudioTrackChangeRequested;
 
         // ------------------------------------------------------------------ //
         //  Fields
         // ------------------------------------------------------------------ //
         private readonly PlayerWindow _owner;
         private bool _isDragging = false;
+
+        // Audio track state
+        private (int Id, string Name)[] _audioTracks = Array.Empty<(int, string)>();
+        private int _currentAudioId = -1;
+        private string _preferredAudioLang = "";
 
         // ------------------------------------------------------------------ //
         //  Constructor
@@ -101,9 +112,9 @@ namespace Vault.Views
             else OutroHighlight.Visibility = Visibility.Collapsed;
         }
 
-        public void SetEpisodeInfo(int season, int ep, string title, Episode? nextEp)
+        public void SetEpisodeInfo(int season, int ep, string title, Episode? nextEp, bool isMovie = false)
         {
-            TxtTitle.Text = $"S{season:D2}E{ep:D2}  —  {title}";
+            TxtTitle.Text = isMovie ? title : $"S{season:D2}E{ep:D2}  —  {title}";
             TxtNextTitle.Text = nextEp != null
                 ? $"S{nextEp.SeasonNumber:D2}E{nextEp.EpisodeNumber:D2}  {nextEp.Title}"
                 : "";
@@ -210,5 +221,139 @@ namespace Vault.Views
 
         private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
             => VolumeChanged?.Invoke((int)e.NewValue);
+
+        // ------------------------------------------------------------------ //
+        //  Subtitles
+        // ------------------------------------------------------------------ //
+
+        public void SetAudioTracks((int Id, string Name)[] tracks, int currentId, string preferredLang)
+        {
+            _audioTracks = tracks;
+            _currentAudioId = currentId;
+            _preferredAudioLang = preferredLang;
+        }
+
+        private void BtnSubtitles_Click(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            AddSubtitleRequested?.Invoke();
+        }
+        private void BtnAudioTrack_Click(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+
+            if (_audioTracks.Length == 0) return;
+
+            var popup = new Popup
+            {
+                PlacementTarget = sender as Button,
+                Placement = PlacementMode.Top,
+                StaysOpen = false,
+                AllowsTransparency = true
+            };
+
+            var border = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(220, 10, 10, 20)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(100, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(4),
+                MinWidth = 240
+            };
+
+            var outerStack = new StackPanel();
+
+            bool hasRealTracks = _audioTracks.Length > 0;
+
+            if (!hasRealTracks)
+            {
+                outerStack.Children.Add(new TextBlock
+                {
+                    Text = "No audio tracks available",
+                    Foreground = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)),
+                    FontFamily = new FontFamily("Segoe UI"),
+                    FontSize = 13,
+                    Margin = new Thickness(14, 10, 14, 10)
+                });
+            }
+            else
+            {
+                foreach (var track in _audioTracks)
+                {
+                    bool isCurrent = track.Id == _currentAudioId;
+                    string displayName = track.Id == -1 ? "Disable audio" : track.Name;
+
+                    var btn = new Button
+                    {
+                        Background = isCurrent
+                            ? new SolidColorBrush(Color.FromArgb(70, 255, 255, 255))
+                            : Brushes.Transparent,
+                        BorderThickness = new Thickness(0),
+                        Cursor = Cursors.Hand,
+                        Padding = new Thickness(12, 7, 16, 7),
+                        HorizontalContentAlignment = HorizontalAlignment.Left
+                    };
+
+                    var row = new StackPanel { Orientation = Orientation.Horizontal };
+                    row.Children.Add(new TextBlock
+                    {
+                        Text = isCurrent ? "●" : "○",
+                        Foreground = isCurrent
+                            ? Brushes.White
+                            : new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)),
+                        FontSize = 9,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0, 0, 10, 0)
+                    });
+                    row.Children.Add(new TextBlock
+                    {
+                        Text = displayName,
+                        Foreground = isCurrent
+                            ? Brushes.White
+                            : new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
+                        FontFamily = new FontFamily("Segoe UI"),
+                        FontSize = 13,
+                        VerticalAlignment = VerticalAlignment.Center
+                    });
+                    btn.Content = row;
+
+                    var tmpl = new ControlTemplate(typeof(Button));
+                    var fac = new FrameworkElementFactory(typeof(Border));
+                    fac.SetBinding(Border.BackgroundProperty,
+                        new Binding("Background")
+                        {
+                            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+                        });
+                    fac.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+                    fac.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
+                    tmpl.VisualTree = fac;
+                    btn.Template = tmpl;
+
+                    int capturedId = track.Id;
+                    string capturedName = track.Name ?? "";
+                    bool capturedIsCurrent = isCurrent;
+
+                    btn.Click += (s, args) =>
+                    {
+                        popup.IsOpen = false;
+                        AudioTrackChangeRequested?.Invoke(capturedId, capturedName, true);
+                    };
+                    btn.MouseEnter += (s, args) =>
+                        btn.Background = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255));
+                    btn.MouseLeave += (s, args) =>
+                        btn.Background = capturedIsCurrent
+                            ? new SolidColorBrush(Color.FromArgb(70, 255, 255, 255))
+                            : Brushes.Transparent;
+
+                    outerStack.Children.Add(btn);
+                }
+
+            }
+
+            border.Child = outerStack;
+            popup.Child = border;
+            popup.IsOpen = true;
+        }
     }
 }

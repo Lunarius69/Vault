@@ -1,13 +1,17 @@
 ﻿using Microsoft.Win32;
+using System;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using Vault.Models;
+using Vault.Services;
 
 namespace Vault.Views
 {
     public partial class SettingsPage : UserControl
     {
         private AppSettings _settings;
+        private CancellationTokenSource? _resolveCts;
 
         public SettingsPage()
         {
@@ -61,6 +65,74 @@ namespace Vault.Views
             TxtSaveStatus.Text = "Settings saved successfully.";
             TxtSaveStatus.Visibility = Visibility.Visible;
         }
+
+        // ── Steam AppID bulk resolver ─────────────────────────────────────────────
+
+        private async void BtnResolveSteamIds_Click(object sender, RoutedEventArgs e)
+        {
+            // If already running, cancel
+            if (_resolveCts != null)
+            {
+                _resolveCts.Cancel();
+                return; // UI resets in the finally block below
+            }
+
+            _resolveCts = new CancellationTokenSource();
+            BtnResolveSteamIds.Content = "⏹  Cancel";
+            PnlResolveProgress.Visibility = Visibility.Visible;
+            TxtResolveStatus.Visibility = Visibility.Collapsed;
+
+            var resolver = new BulkSteamAppIdResolver();
+
+            var progress = new Progress<(int current, int total, string title)>(p =>
+            {
+                TxtResolveGame.Text = p.title;
+                TxtResolveCount.Text = $"{p.current} / {p.total}";
+
+                // Update the custom progress bar fill width
+                double trackWidth = PnlResolveProgress.ActualWidth - 32; // minus padding
+                double fill = p.total > 0 ? trackWidth * p.current / p.total : 0;
+                PbResolveFill.Width = Math.Max(0, fill);
+            });
+
+            try
+            {
+                var result = await resolver.ResolveAllAsync(progress, _resolveCts.Token);
+
+                TxtResolveGame.Text = "Complete";
+                TxtResolveCount.Text = $"{result.Total} / {result.Total}";
+                PbResolveFill.Width = Math.Max(0, PnlResolveProgress.ActualWidth - 32);
+
+                TxtResolveStatus.Foreground = System.Windows.Media.Brushes.LightGreen;
+                TxtResolveStatus.Text =
+                    $"✓  {result.Resolved} resolved • " +
+                    $"{result.AlreadyHad} already cached • " +
+                    $"{result.Skipped} non-Steam • " +
+                    (result.Failed.Count > 0 ? $"{result.Failed.Count} errors" : "no errors");
+            }
+            catch (OperationCanceledException)
+            {
+                TxtResolveStatus.Foreground =
+                    new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter
+                            .ConvertFromString("#fdcb6e"));
+                TxtResolveStatus.Text = "Cancelled — progress saved to database.";
+            }
+            catch (Exception ex)
+            {
+                TxtResolveStatus.Foreground = System.Windows.Media.Brushes.OrangeRed;
+                TxtResolveStatus.Text = $"Error: {ex.Message}";
+            }
+            finally
+            {
+                _resolveCts?.Dispose();
+                _resolveCts = null;
+                BtnResolveSteamIds.Content = "🔍  Resolve Steam AppIDs";
+                TxtResolveStatus.Visibility = Visibility.Visible;
+            }
+        }
+
+        // ── Browse helpers ────────────────────────────────────────────────────────
 
         private string BrowseFolder()
         {

@@ -77,6 +77,10 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Background" Value="#c73652"/>
                             </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#2d3561"/>
+                                <Setter Property="Foreground" Value="#636e72"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -279,6 +283,52 @@
                        Visibility="Collapsed"/>
 
             <Border Height="1" Background="#2d3561" Margin="0,16,0,0"/>
+
+            <!-- ACHIEVEMENTS -->
+            <TextBlock Text="ACHIEVEMENTS" Style="{StaticResource SectionHeader}"/>
+
+            <TextBlock TextWrapping="Wrap" Margin="0,0,0,16" MaxWidth="620"
+                       FontFamily="Segoe UI" FontSize="12" Foreground="#b2bec3">
+                <Run Text="Bulk-resolve Steam AppIDs for all ~2000 PC games so achievements load instantly on every game page. Runs once and saves results to the database — safe to cancel and resume. Takes ~25 min for 2000 games (games with a "/>
+                <Run Text="steam_appid.txt" FontFamily="Consolas" Foreground="#e94560"/>
+                <Run Text=" on disk resolve instantly)."/>
+            </TextBlock>
+
+            <!-- Progress bar — hidden until job starts -->
+            <Border x:Name="PnlResolveProgress"
+                    Background="#0f3460" CornerRadius="6" Padding="16"
+                    Margin="0,0,0,12" Visibility="Collapsed" MaxWidth="620">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock x:Name="TxtResolveGame"
+                                   Foreground="#ffffff" FontFamily="Segoe UI" FontSize="12"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="420"/>
+                        <TextBlock x:Name="TxtResolveCount"
+                                   Foreground="#636e72" FontFamily="Segoe UI" FontSize="12"
+                                   Margin="8,0,0,0"/>
+                    </StackPanel>
+                    <!-- Track -->
+                    <Border Height="6" Background="#2d3561" CornerRadius="3">
+                        <Border x:Name="PbResolveFill" Height="6" Background="#e94560"
+                                CornerRadius="3" HorizontalAlignment="Left" Width="0"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
+                <Button x:Name="BtnResolveSteamIds"
+                        Content="🔍  Resolve Steam AppIDs"
+                        Style="{StaticResource ActionButton}"
+                        Width="220"
+                        Click="BtnResolveSteamIds_Click"/>
+                <TextBlock x:Name="TxtResolveStatus"
+                           Foreground="#00b894" FontSize="12" FontFamily="Segoe UI"
+                           VerticalAlignment="Center" Margin="16,0,0,0"
+                           TextWrapping="Wrap" MaxWidth="380"
+                           Visibility="Collapsed"/>
+            </StackPanel>
+
+            <Border Height="1" Background="#2d3561" Margin="0,24,0,0"/>
 
             <!-- SAVE -->
             <StackPanel Orientation="Horizontal" Margin="0,24,0,0">

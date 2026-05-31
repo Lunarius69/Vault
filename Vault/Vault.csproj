@@ -10,7 +10,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Remove="Assets\vault.ico" />
+	  <None Remove="Assets\vault.ico" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Include="Assets\vault.ico" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -34,7 +38,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Resource Include="Assets\vault.ico" />
+	  <Resource Include="Assets\vault.ico">
+	    <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+	  </Resource>
 	</ItemGroup>
 
 </Project>

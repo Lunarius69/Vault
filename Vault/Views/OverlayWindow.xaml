@@ -115,13 +115,27 @@
                                    VerticalAlignment="Center" Margin="14,0,0,0"/>
                     </StackPanel>
 
-                    <!-- Fullscreen -->
-                    <Button Content="⛶" ToolTip="Fullscreen"
-                            HorizontalAlignment="Right"
-                            Width="38" Height="38" FontSize="18"
-                            Foreground="White" Background="Transparent"
-                            BorderThickness="0" Cursor="Hand" Focusable="False"
-                            Click="BtnFullscreen_Click"/>
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <!-- Subtitles -->
+                        <Button x:Name="BtnSubtitles" Content="CC" ToolTip="Add subtitles"
+                                Width="38" Height="38" FontSize="13" FontWeight="SemiBold"
+                                Foreground="White" Background="Transparent"
+                                BorderThickness="0" Cursor="Hand" Margin="0,0,4,0"
+                                Focusable="False" Click="BtnSubtitles_Click"/>
+                        <!-- Audio track -->
+                        <Button x:Name="BtnAudioTrack" Content="🎵" ToolTip="Audio Track"
+                                Width="38" Height="38" FontSize="15"
+                                Foreground="White" Background="Transparent"
+                                BorderThickness="0" Cursor="Hand" Margin="0,0,4,0"
+                                Focusable="False" Click="BtnAudioTrack_Click"/>
+                        <!-- Fullscreen -->
+                        <Button Content="⛶" ToolTip="Fullscreen"
+                                Width="38" Height="38" FontSize="18"
+                                Foreground="White" Background="Transparent"
+                                BorderThickness="0" Cursor="Hand" Focusable="False"
+                                Click="BtnFullscreen_Click"/>
+                    </StackPanel>
                 </Grid>
             </StackPanel>
         </Grid>

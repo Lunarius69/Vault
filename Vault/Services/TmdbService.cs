@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Vault.Database;
 using Vault.Models;
 
 namespace Vault.Services
@@ -14,6 +16,27 @@ namespace Vault.Services
         private readonly HttpClient _http = new();
         private readonly string _apiKey;
         private readonly string _cacheFolder;
+
+        // TMDB genre ID for Animation — used to distinguish anime/animated
+        // content from live-action results with the same title.
+        private const int AnimationGenreId = 16;
+
+        // Hardcoded TMDB IDs for titles that the search API gets wrong —
+        // either because two things share a name, the title is too new,
+        // or TMDB's search ranking returns the wrong entry first.
+        // Key: exact title string as stored in the DB.
+        // Value: (tmdbId, isSeries)
+        private static readonly Dictionary<string, (int TmdbId, bool IsSeries)> _knownIds =
+            new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Demon Slayer: Infinity Castle Arc",          (1311031, false) },
+            { "Evangelion: 3.0+1.0 Thrice Upon a Time",    (283566,  false) },
+            { "Project Sekai Movie: Kowareta Sekai to Utaenai Miku", (1322752, false) },
+            { "Witch Watch",                                (261868,  true)  },
+            { "Atelier of Witch Hat",                       (196950,  true)  },
+            { "Fullmetal Alchemist (2003)",          (37863,  true)  },
+           
+        };
 
         public TmdbService(AppSettings settings)
         {
@@ -33,32 +56,33 @@ namespace Vault.Services
 
         public static int ExtractSeasonNumber(string title)
         {
-            // Match "Season 1", "Season 2" anywhere in the title
-            var match = Regex.Match(title,
-                @"Season\s+(\d+)",
-                RegexOptions.IgnoreCase);
-            if (match.Success && int.TryParse(match.Groups[1].Value, out int s))
-                return s;
+            var match = Regex.Match(title, @"Season\s+(\d+)", RegexOptions.IgnoreCase);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int s)) return s;
 
-            // Match "2nd Season", "3rd Season" etc.
-            var match2 = Regex.Match(title,
-                @"(\d+)(?:st|nd|rd|th)\s+Season",
-                RegexOptions.IgnoreCase);
-            if (match2.Success && int.TryParse(match2.Groups[1].Value, out int s2))
-                return s2;
+            var match2 = Regex.Match(title, @"(\d+)(?:st|nd|rd|th)\s+Season", RegexOptions.IgnoreCase);
+            if (match2.Success && int.TryParse(match2.Groups[1].Value, out int s2)) return s2;
 
-            // Match "Part 1", "Part 2" etc.
-            var match3 = Regex.Match(title,
-                @"Part\s+(\d+)",
-                RegexOptions.IgnoreCase);
-            if (match3.Success && int.TryParse(match3.Groups[1].Value, out int s3))
-                return s3;
+            var match3 = Regex.Match(title, @"Part\s+(\d+)", RegexOptions.IgnoreCase);
+            if (match3.Success && int.TryParse(match3.Groups[1].Value, out int s3)) return s3;
 
             return 1;
         }
 
-        public async Task<int?> SearchAsync(string title, bool isSeries, int? year = null)
+        // ── SearchAsync ──────────────────────────────────────────────────────────
+        // Checks the hardcoded _knownIds table first — if the title is there,
+        // returns immediately without hitting the TMDB search API at all.
+        // Otherwise falls through to the normal genre-filtered search.
+        // ────────────────────────────────────────────────────────────────────────
+        public async Task<int?> SearchAsync(
+            string title,
+            bool isSeries,
+            int? year = null,
+            string? mediaType = null)
         {
+            // Hardcoded lookup — always wins over search API
+            if (_knownIds.TryGetValue(title, out var known))
+                return known.TmdbId;
+
             try
             {
                 string type = isSeries ? "tv" : "movie";
@@ -76,11 +100,109 @@ namespace Vault.Services
                 var results = doc.RootElement.GetProperty("results");
                 if (results.GetArrayLength() == 0) return null;
 
-                return results[0].GetProperty("id").GetInt32();
+                bool wantAnimation = IsAnimatedType(mediaType);
+                bool isLiveAction = IsLiveActionType(mediaType);
+
+                // No genre filtering needed — return first result as before
+                if (!wantAnimation && !isLiveAction)
+                    return results[0].GetProperty("id").GetInt32();
+
+                // Build list of (id, isAnimated, popularity) for all results
+                var candidates = new List<(int id, bool isAnimated, double popularity)>();
+                foreach (var result in results.EnumerateArray())
+                {
+                    int id = result.GetProperty("id").GetInt32();
+                    bool isAnimated = false;
+                    double popularity = result.TryGetProperty("popularity", out var pop)
+                        ? pop.GetDouble() : 0;
+
+                    if (result.TryGetProperty("genre_ids", out var genreIds))
+                        foreach (var g in genreIds.EnumerateArray())
+                            if (g.GetInt32() == AnimationGenreId) { isAnimated = true; break; }
+
+                    candidates.Add((id, isAnimated, popularity));
+                }
+
+                if (wantAnimation)
+                {
+                    // First: prefer animated results
+                    var animatedMatch = candidates.FirstOrDefault(c => c.isAnimated);
+                    if (animatedMatch.id != 0) return animatedMatch.id;
+
+                    // Second: if year is known, find by exact year match regardless of genre
+                    // (some anime on TMDB are miscategorised and lack genre 16)
+                    if (year.HasValue)
+                    {
+                        foreach (var result in results.EnumerateArray())
+                        {
+                            string? dateStr = result.TryGetProperty("release_date", out var rd)
+                                ? rd.GetString()
+                                : result.TryGetProperty("first_air_date", out var fd)
+                                    ? fd.GetString() : null;
+
+                            if (dateStr?.Length >= 4 &&
+                                int.TryParse(dateStr[..4], out int resultYear) &&
+                                resultYear == year.Value)
+                                return result.GetProperty("id").GetInt32();
+                        }
+                    }
+
+                    // Last resort: first result (better than blank)
+                    return candidates[0].id;
+                }
+                else // live-action
+                {
+                    var nonAnimated = candidates.FirstOrDefault(c => !c.isAnimated);
+                    return nonAnimated.id != 0 ? nonAnimated.id : candidates[0].id;
+                }
             }
             catch { return null; }
         }
 
+        // ── ResetWrongTmdbMatchesAsync ────────────────────────────────────────────
+        public static async Task<int> ResetWrongTmdbMatchesAsync(params string[] titles)
+        {
+            using var db = new VaultContext();
+            int fixed_ = 0;
+
+            foreach (string title in titles)
+            {
+                var items = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .ToListAsync(
+                        db.MediaItems.Where(m => m.Title == title));
+
+                foreach (var item in items)
+                {
+                    TryDeleteFile(item.PosterPath);
+                    TryDeleteFile(item.BannerPath);
+
+                    item.TmdbId = 0;
+                    item.TmdbIds = null;
+                    item.PosterPath = null;
+                    item.BannerPath = null;
+                    item.Description = null;
+                    item.TmdbRating = null;
+                    fixed_++;
+                }
+            }
+
+            if (fixed_ > 0) await db.SaveChangesAsync();
+            return fixed_;
+        }
+
+        private static void TryDeleteFile(string? path)
+        {
+            try { if (!string.IsNullOrEmpty(path) && File.Exists(path)) File.Delete(path); }
+            catch { }
+        }
+
+        private static bool IsAnimatedType(string? mediaType) =>
+            mediaType is "Anime" or "AnimeMovie" or "AnimatedSeries" or "AnimatedMovie";
+
+        private static bool IsLiveActionType(string? mediaType) =>
+            mediaType is "Movie" or "Show";
+
+        // ── FetchDetailsAsync ────────────────────────────────────────────────────
         public async Task<TmdbDetails?> FetchDetailsAsync(int tmdbId, bool isSeries)
         {
             try
@@ -204,10 +326,12 @@ namespace Vault.Services
             catch { return null; }
         }
 
-        public async Task<string?> DownloadPosterAsync(int itemId, string tmdbPath)
+        public async Task<string?> DownloadPosterAsync(int itemId, string tmdbPath, int tmdbId = 0)
         {
             if (string.IsNullOrEmpty(tmdbPath)) return null;
-            string localPath = Path.Combine(_cacheFolder, $"{itemId}_poster.jpg");
+
+            string cacheKey = tmdbId > 0 ? $"tmdb_{tmdbId}_poster" : $"{itemId}_poster";
+            string localPath = Path.Combine(_cacheFolder, $"{cacheKey}.jpg");
             if (File.Exists(localPath)) return localPath;
 
             try
@@ -220,10 +344,12 @@ namespace Vault.Services
             catch { return null; }
         }
 
-        public async Task<string?> DownloadBannerAsync(int itemId, string tmdbPath)
+        public async Task<string?> DownloadBannerAsync(int itemId, string tmdbPath, int tmdbId = 0)
         {
             if (string.IsNullOrEmpty(tmdbPath)) return null;
-            string localPath = Path.Combine(_cacheFolder, $"{itemId}_banner.jpg");
+
+            string cacheKey = tmdbId > 0 ? $"tmdb_{tmdbId}_banner" : $"{itemId}_banner";
+            string localPath = Path.Combine(_cacheFolder, $"{cacheKey}.jpg");
             if (File.Exists(localPath)) return localPath;
 
             try

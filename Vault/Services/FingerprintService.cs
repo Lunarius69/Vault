@@ -26,10 +26,11 @@ namespace Vault.Services
     /// </summary>
     public class FingerprintService
     {
-        private const int IntroScanSeconds = 600;   // first 10 min
-        private const int OutroScanSeconds = 480;   // last 8 min
+        private const int IntroScanSeconds = 300;   // first 5 min — anime OPs never start later
+        private const int OutroScanSeconds = 300;   // last 5 min — covers ED + omake
         private const int MinIntroDuration = 20;    // seconds
         private const int MinOutroDuration = 15;
+        private const int CompareWindow = 8;        // compare each episode with 8 neighbors
 
         // ------------------------------------------------------------------ //
         //  Public entry point
@@ -38,12 +39,31 @@ namespace Vault.Services
         public async Task ProcessShowAsync(
             int mediaItemId,
             List<Episode> episodes,
+            int currentIndex = 0,
             CancellationToken ct = default)
         {
+            // Reset episodes that were marked processed but have no intro data — allows retry
+            try
+            {
+                using var db = new VaultContext();
+                var stuck = db.Episodes
+                    .Where(e => e.MediaItemId == mediaItemId &&
+                                e.FingerprintProcessed &&
+                                e.IntroEnd < 0 && e.OutroStart < 0);
+                bool any = false;
+                foreach (var e in stuck) { e.FingerprintProcessed = false; any = true; }
+                if (any) await db.SaveChangesAsync();
+            }
+            catch { }
+
+            // Process up to 20 episodes nearest to what's currently playing
+            int start = Math.Max(0, currentIndex - 5);
             var toProcess = episodes
+                .Skip(start)
                 .Where(e => !e.FingerprintProcessed &&
                             !string.IsNullOrEmpty(e.FilePath) &&
                             File.Exists(e.FilePath))
+                .Take(20)
                 .ToList();
 
             if (toProcess.Count < 2) return;
@@ -74,8 +94,8 @@ namespace Vault.Services
                 if (d > 0) durations[ep.Id] = d;
             }
 
-            // Step 2: extract amplitude hashes for intro section
-            var hashes = new Dictionary<int, float[]>();
+            // Step 2a: extract amplitude hashes for intro section (in episode order)
+            var introHashes = new List<(int Id, float[] Hash)>();
             foreach (var ep in episodes)
             {
                 if (ct.IsCancellationRequested) return;
@@ -83,15 +103,76 @@ namespace Vault.Services
                 double scanLen = Math.Min(IntroScanSeconds, dur);
                 var h = await ExtractAmplitudeHashAsync(ep.FilePath!, 0, scanLen, ep.Id);
                 if (h != null && h.Length > 0)
-                    hashes[ep.Id] = h;
+                    introHashes.Add((ep.Id, h));
             }
 
-            // Step 3: find common intro segment across episodes
-            var introResults = new Dictionary<int, (double start, double end)>();
-            if (hashes.Count >= 2)
-                introResults = FindCommonSegment(hashes);
+            // Step 2b: extract amplitude hashes for outro section (last OutroScanSeconds)
+            var outroHashes = new List<(int Id, float[] Hash)>();
+            var outroOffsets = new Dictionary<int, double>();
+            foreach (var ep in episodes)
+            {
+                if (ct.IsCancellationRequested) return;
+                if (!durations.TryGetValue(ep.Id, out double dur)) continue;
+                double outroOffset = Math.Max(0, dur - OutroScanSeconds);
+                double scanLen = Math.Min(OutroScanSeconds, dur);
+                var h = await ExtractAmplitudeHashAsync(ep.FilePath!, outroOffset, scanLen, ep.Id);
+                if (h != null && h.Length > 0)
+                {
+                    outroHashes.Add((ep.Id, h));
+                    outroOffsets[ep.Id] = outroOffset;
+                }
+            }
 
-            // Step 4: outro detection per episode
+            // Step 3a: find common intro segment across episodes
+            var introResults = new Dictionary<int, (double start, double end)>();
+            if (introHashes.Count >= 2)
+                introResults = FindCommonSegment(introHashes, MinIntroDuration);
+
+            // Step 3b: find common outro/ED segment via cross-correlation
+            var outroCorrelationResults = new Dictionary<int, double>();
+            if (outroHashes.Count >= 2)
+            {
+                var rawOutro = FindCommonSegment(outroHashes, MinOutroDuration);
+                var candidates = new Dictionary<int, double>();
+                foreach (var kvp in rawOutro)
+                {
+                    if (!outroOffsets.TryGetValue(kvp.Key, out double outroOffset)) continue;
+                    if (!durations.TryGetValue(kvp.Key, out double dur)) continue;
+                    double absoluteStart = outroOffset + kvp.Value.start;
+                    if (absoluteStart > dur / 2 && absoluteStart < dur - 10)
+                        candidates[kvp.Key] = absoluteStart;
+                }
+
+                // Consistency check: measure how consistently the outro falls at the same
+                // distance from the end. Anime with a fixed ED song → low variance (accept).
+                // Drama/thriller with recurring theme at variable positions → high variance (reject).
+                if (candidates.Count >= 2)
+                {
+                    var timesFromEnd = candidates
+                        .Select(kvp => durations.TryGetValue(kvp.Key, out double d)
+                            ? d - kvp.Value : -1)
+                        .Where(t => t > 0)
+                        .ToList();
+
+                    double mean = timesFromEnd.Average();
+                    double stdDev = Math.Sqrt(
+                        timesFromEnd.Select(t => (t - mean) * (t - mean)).Average());
+
+                    if (stdDev <= 45)
+                    {
+                        outroCorrelationResults = candidates;
+                        Debug.WriteLine(
+                            $"[FP] Outro correlation accepted: σ={stdDev:F1}s, mean={mean:F1}s from end");
+                    }
+                    else
+                    {
+                        Debug.WriteLine(
+                            $"[FP] Outro correlation rejected: σ={stdDev:F1}s (inconsistent — not a fixed ED)");
+                    }
+                }
+            }
+
+            // Step 4: outro detection per episode — chapter markers → ED cross-correlation → black-frame → silence
             var outroResults = new Dictionary<int, double>();
             foreach (var ep in episodes)
             {
@@ -102,13 +183,13 @@ namespace Vault.Services
                 var (_, chapOutro) = await ReadChapterMarkersAsync(ep.FilePath!);
                 if (chapOutro > 0) { outroResults[ep.Id] = chapOutro; continue; }
 
-                // 4b: black-frame detection
-                double? bf = await DetectBlackFrameOutroAsync(ep.FilePath!, dur);
-                if (bf.HasValue) { outroResults[ep.Id] = bf.Value; continue; }
+                // 4b: ED song cross-correlation (only set when consistency check passed)
+                if (outroCorrelationResults.TryGetValue(ep.Id, out double edStart))
+                { outroResults[ep.Id] = edStart; continue; }
 
-                // 4c: silence detection fallback
-                double? sil = await DetectSilenceOutroAsync(ep.FilePath!, dur);
-                if (sil.HasValue) outroResults[ep.Id] = sil.Value;
+                // No further audio detection — if cross-correlation was rejected it means
+                // the show has no consistent ED, so silence/black-frame would also be unreliable.
+                // Fall through to the time-based trigger in the player.
             }
 
             // Step 5: save results
@@ -172,6 +253,14 @@ namespace Vault.Services
                     hashes[w] = (float)Math.Sqrt(rms / samplesPerSec);
                 }
 
+                // Normalize by mean so volume differences between episodes don't affect matching
+                float mean = 0;
+                foreach (var v in hashes) mean += v;
+                mean /= hashes.Length;
+                if (mean > 0.0001f)
+                    for (int w = 0; w < hashes.Length; w++)
+                        hashes[w] /= mean;
+
                 return hashes;
             }
             catch (Exception ex)
@@ -185,42 +274,29 @@ namespace Vault.Services
         //  Cross-correlation of amplitude hashes
         // ------------------------------------------------------------------ //
 
+        // orderedHashes must be in episode order so neighbor comparison stays within the same arc/OP
         private static Dictionary<int, (double start, double end)> FindCommonSegment(
-            Dictionary<int, float[]> hashes)
+            List<(int Id, float[] Hash)> orderedHashes, int minDuration)
         {
             var results = new Dictionary<int, (double start, double end)>();
-            var epIds = hashes.Keys.ToList();
 
-            for (int i = 0; i < epIds.Count; i++)
+            for (int i = 0; i < orderedHashes.Count; i++)
             {
-                int idA = epIds[i];
-                float[] hashA = hashes[idA];
+                var (idA, hashA) = orderedHashes[i];
+                int bestRunLen = 0, bestOffsetA = 0;
 
-                int bestRunLen = 0;
-                int bestOffsetA = 0;
+                int jMin = Math.Max(0, i - CompareWindow);
+                int jMax = Math.Min(orderedHashes.Count - 1, i + CompareWindow);
 
-                for (int j = 0; j < epIds.Count; j++)
+                for (int j = jMin; j <= jMax; j++)
                 {
-                    if (i == j) continue;
-                    float[] hashB = hashes[epIds[j]];
-
-                    (int offset, int runLen) = SlideMatch(hashA, hashB);
-                    if (runLen > bestRunLen)
-                    {
-                        bestRunLen = runLen;
-                        bestOffsetA = offset;
-                    }
+                    if (j == i) continue;
+                    (int offset, int runLen) = SlideMatch(hashA, orderedHashes[j].Hash);
+                    if (runLen > bestRunLen) { bestRunLen = runLen; bestOffsetA = offset; }
                 }
 
-                if (bestRunLen >= MinIntroDuration)
-                {
-                    results[idA] = (
-                        start: bestOffsetA,
-                        end: bestOffsetA + bestRunLen
-                    );
-                    Debug.WriteLine(
-                        $"[FP] Ep{idA} intro {bestOffsetA}s → {bestOffsetA + bestRunLen}s");
-                }
+                if (bestRunLen >= minDuration)
+                    results[idA] = (start: bestOffsetA, end: bestOffsetA + bestRunLen);
             }
 
             return results;
@@ -232,8 +308,8 @@ namespace Vault.Services
         /// </summary>
         private static (int offset, int runLen) SlideMatch(float[] hashA, float[] hashB)
         {
-            const float Threshold = 0.04f; // RMS difference tolerance
-            const int MinRun = 5;     // minimum consecutive matches to count
+            const float Threshold = 0.07f; // RMS difference tolerance
+            const int MinRun = 3;     // minimum consecutive matches to count
 
             int bestRun = 0, bestOff = 0;
 
@@ -304,9 +380,11 @@ namespace Vault.Services
                         starts.Add(offset + bs);
                 }
 
+                // Take the earliest black frame in the scan window — that's the transition
+                // into the outro sequence, not a later transition within it (e.g. omake start).
                 return starts
                     .Where(t => t < totalDuration - 10)
-                    .OrderByDescending(t => t)
+                    .OrderBy(t => t)
                     .Cast<double?>()
                     .FirstOrDefault();
             }
@@ -459,16 +537,22 @@ namespace Vault.Services
                 var dbEp = await db.Episodes.FindAsync(ep.Id);
                 if (dbEp == null) continue;
 
-                if (introResults.TryGetValue(ep.Id, out var intro))
+                bool gotIntro = introResults.TryGetValue(ep.Id, out var intro);
+                bool gotOutro = outroResults.TryGetValue(ep.Id, out double outro);
+
+                if (gotIntro)
                 {
                     dbEp.IntroStart = ep.IntroStart = intro.start;
                     dbEp.IntroEnd = ep.IntroEnd = intro.end;
                 }
 
-                if (outroResults.TryGetValue(ep.Id, out double outro))
+                if (gotOutro)
                     dbEp.OutroStart = ep.OutroStart = outro;
 
-                dbEp.FingerprintProcessed = ep.FingerprintProcessed = true;
+                // Only mark as processed if we actually found something — otherwise keep
+                // FingerprintProcessed = false so the next session can retry.
+                if (gotIntro || gotOutro)
+                    dbEp.FingerprintProcessed = ep.FingerprintProcessed = true;
             }
             await db.SaveChangesAsync();
         }

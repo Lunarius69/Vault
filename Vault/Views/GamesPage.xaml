@@ -63,6 +63,115 @@
             <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
             <Setter Property="Stretch" Value="UniformToFill"/>
         </Style>
+
+        <!-- ComboBoxItem style for Sort dropdown (must be defined BEFORE SortComboBox style) -->
+        <Style x:Key="SortComboBoxItem" TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#b2bec3"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2d3561"/>
+                                <Setter Property="Foreground" Value="#ffffff"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#e94560"/>
+                                <Setter Property="Foreground" Value="#ffffff"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Sort ComboBox style -->
+        <Style x:Key="SortComboBox" TargetType="ComboBox">
+            <Setter Property="Background" Value="#e94560"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="BorderBrush" Value="#e94560"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="24"/>
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter x:Name="ContentSite"
+                                                  Grid.Column="0"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="12,0,0,0"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="▾"
+                                           Foreground="#ffffff"
+                                           FontSize="10"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           IsHitTestVisible="False"/>
+                                <ToggleButton Grid.ColumnSpan="2"
+                                              Focusable="False"
+                                              IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                              Cursor="Hand">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="Transparent"/>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                                <Popup x:Name="Popup"
+                                       Placement="Bottom"
+                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       PopupAnimation="Slide">
+                                    <Border x:Name="DropDownBorder"
+                                            Background="#16213e"
+                                            BorderBrush="#2d3561"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            MinWidth="{TemplateBinding ActualWidth}"
+                                            Margin="0,2,0,0">
+                                        <ScrollViewer SnapsToDevicePixels="True">
+                                            <StackPanel IsItemsHost="True"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#c73652"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#c73652"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </UserControl.Resources>
 
     <Grid>
@@ -106,8 +215,9 @@
                     <TextBlock Text="SORT:" Foreground="#636e72" FontSize="11"
                                FontFamily="Segoe UI" FontWeight="Bold"
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <ComboBox x:Name="SortCombo" Width="140" Height="30"
-                              FontFamily="Segoe UI" FontSize="12"
+                    <ComboBox x:Name="SortCombo" Width="140"
+                              Style="{StaticResource SortComboBox}"
+                              ItemContainerStyle="{StaticResource SortComboBoxItem}"
                               SelectionChanged="SortCombo_SelectionChanged">
                         <ComboBoxItem Content="Title A-Z" IsSelected="True"/>
                         <ComboBoxItem Content="Title Z-A"/>
@@ -238,30 +348,6 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-
-                <!-- List view -->
-                <ListView Grid.Row="1" x:Name="GamesListView"
-                          Background="Transparent" BorderThickness="0"
-                          Foreground="#ffffff" FontFamily="Segoe UI"
-                          Visibility="Collapsed"
-                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListView.View>
-                        <GridView>
-                            <GridViewColumn Header="Title" Width="300"
-                                            DisplayMemberBinding="{Binding Title}"/>
-                            <GridViewColumn Header="Platform" Width="120"
-                                            DisplayMemberBinding="{Binding Platform}"/>
-                            <GridViewColumn Header="Year" Width="60"
-                                            DisplayMemberBinding="{Binding Year}"/>
-                            <GridViewColumn Header="Status" Width="100"
-                                            DisplayMemberBinding="{Binding Status}"/>
-                            <GridViewColumn Header="Playtime" Width="90"
-                                            DisplayMemberBinding="{Binding PlaytimeDisplay}"/>
-                            <GridViewColumn Header="Size" Width="80"
-                                            DisplayMemberBinding="{Binding SizeDisplay}"/>
-                        </GridView>
-                    </ListView.View>
-                </ListView>
             </Grid>
         </Grid>
 

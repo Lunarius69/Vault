@@ -51,6 +51,7 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
+        <!-- ── Banner area ── -->
         <Grid Grid.Row="0" Height="340">
             <Border ClipToBounds="True">
                 <Grid>
@@ -70,7 +71,7 @@
             <Button x:Name="BtnBack" Content="← Back"
                     HorizontalAlignment="Left" VerticalAlignment="Top"
                     Margin="20,16,0,0"
-                    Background="#33ffffff" Foreground="#ffffff"
+                    Background="#bb000000" Foreground="#ffffff"
                     BorderThickness="0" FontSize="13"
                     FontFamily="Segoe UI" Cursor="Hand"
                     Padding="14,6"
@@ -79,12 +80,11 @@
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}"
                                 CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#55ffffff"/>
+                                <Setter Property="Background" Value="#dd000000"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -114,6 +114,7 @@
             </StackPanel>
         </Grid>
 
+        <!-- ── Main content ── -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <Grid Margin="32,24,32,32">
                 <Grid.ColumnDefinitions>
@@ -121,6 +122,7 @@
                     <ColumnDefinition Width="320"/>
                 </Grid.ColumnDefinitions>
 
+                <!-- ── Left column ── -->
                 <StackPanel Grid.Column="0" Margin="0,0,24,0">
 
                     <Button x:Name="BtnLaunch"
@@ -149,16 +151,63 @@
                             Content="✕  Mark as Not Downloaded"
                             Style="{StaticResource ActionBtn}"
                             Background="#1a1a2e" Foreground="#636e72"
-                            Margin="0,0,0,16"
+                            Margin="0,0,0,8"
                             Click="BtnMarkNotDownloaded_Click"/>
+
+                    <Button x:Name="BtnMoveToCategory"
+                            Content="⇄  Wrong Category? Move to…"
+                            Style="{StaticResource ActionBtn}"
+                            Background="#16213e" Foreground="#fdcb6e"
+                            Margin="0,0,0,8"
+                            Click="BtnMoveToCategory_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="8"
+                                        BorderBrush="#fdcb6e"
+                                        BorderThickness="1">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#2d2d1a"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                    <!-- ── Delete from Library ── -->
+                    <Button x:Name="BtnDelete"
+                            Content="🗑  Delete from Library"
+                            Style="{StaticResource ActionBtn}"
+                            Background="#16213e" Foreground="#e17055"
+                            Margin="0,0,0,16"
+                            Click="BtnDelete_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="8"
+                                        BorderBrush="#e17055"
+                                        BorderThickness="1">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#2d1a1a"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
 
                     <TextBlock x:Name="TxtMessage" Foreground="#00b894"
                                FontSize="12" FontFamily="Segoe UI"
                                TextWrapping="Wrap" Margin="0,0,0,16"
                                Visibility="Collapsed"/>
 
-                    <Border Background="#16213e" CornerRadius="12"
-                            Padding="20" Margin="0,0,0,16">
+                    <!-- Stats grid -->
+                    <Border Background="#16213e" CornerRadius="12" Padding="20">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -166,6 +215,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
+                                <RowDefinition/>
                                 <RowDefinition/>
                                 <RowDefinition/>
                             </Grid.RowDefinitions>
@@ -182,33 +232,36 @@
                                 <TextBlock Text="FILE SIZE" Style="{StaticResource DetailLabel}"/>
                                 <TextBlock x:Name="TxtSize" Style="{StaticResource DetailValue}"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="0" Grid.Row="1">
+
+                            <StackPanel Grid.Column="0" Grid.Row="1" Margin="0,0,0,16">
                                 <TextBlock Text="PLAYTIME" Style="{StaticResource DetailLabel}"/>
                                 <TextBlock x:Name="TxtPlaytime" Style="{StaticResource DetailValue}"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Grid.Row="1">
+                            <StackPanel Grid.Column="1" Grid.Row="1" Margin="0,0,0,16">
                                 <TextBlock Text="LAST PLAYED" Style="{StaticResource DetailLabel}"/>
                                 <TextBlock x:Name="TxtLastPlayed" Style="{StaticResource DetailValue}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="0" Grid.Row="2">
+                                <TextBlock Text="SOURCE" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtNotes" Style="{StaticResource DetailValue}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Grid.Row="2">
+                                <TextBlock Text="EMULATOR" Style="{StaticResource DetailLabel}"/>
+                                <TextBlock x:Name="TxtEmulator" Style="{StaticResource DetailValue}"/>
                             </StackPanel>
                         </Grid>
                     </Border>
 
-                    <Border Background="#16213e" CornerRadius="12" Padding="20">
-                        <StackPanel>
-                            <TextBlock Text="DESCRIPTION" Style="{StaticResource DetailLabel}"
-                                       Margin="0,0,0,8"/>
-                            <TextBlock x:Name="TxtDescription"
-                                       Foreground="#b2bec3" FontSize="13"
-                                       FontFamily="Segoe UI" TextWrapping="Wrap"
-                                       LineHeight="20"/>
-                        </StackPanel>
-                    </Border>
                 </StackPanel>
 
+                <!-- ── Right column ── -->
                 <StackPanel Grid.Column="1">
 
+                    <!-- Box art -->
                     <Border CornerRadius="10" ClipToBounds="True"
-                            Height="220" Margin="0,0,0,16">
+                            Height="340" HorizontalAlignment="Stretch"
+                            Margin="0,0,0,16">
                         <Grid>
                             <Border x:Name="PlaceholderBg" Background="#0f3460"/>
                             <TextBlock x:Name="TxtPlaceholder"
@@ -217,11 +270,15 @@
                                        TextAlignment="Center"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center" Margin="16"/>
-                            <Image x:Name="ImgBoxArt" Stretch="UniformToFill"
+                            <Image x:Name="ImgBoxArt"
+                                   Stretch="Uniform"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
                                    Visibility="Collapsed"/>
                         </Grid>
                     </Border>
 
+                    <!-- How Long to Beat -->
                     <Border Background="#16213e" CornerRadius="12"
                             Padding="20" Margin="0,0,0,16">
                         <StackPanel>
@@ -265,30 +322,245 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- ══ Achievements panel ══ -->
                     <Border x:Name="AchievementsPanel" Background="#16213e"
                             CornerRadius="12" Padding="20">
                         <StackPanel>
-                            <TextBlock Text="ACHIEVEMENTS"
-                                       Style="{StaticResource DetailLabel}"
-                                       Margin="0,0,0,8"/>
-                            <TextBlock x:Name="TxtAchievements"
-                                       Foreground="#ffffff" FontSize="22"
-                                       FontWeight="Bold" FontFamily="Segoe UI"
-                                       Margin="0,0,0,8"/>
-                            <Grid Height="8" Margin="0,0,0,6">
-                                <Border Background="#2d3561" CornerRadius="4"/>
+
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="ACHIEVEMENTS"
+                                           Style="{StaticResource DetailLabel}"
+                                           VerticalAlignment="Center"
+                                           Margin="0"/>
+                                <Border x:Name="AchCountBadge"
+                                        Grid.Column="1"
+                                        Background="#2d3561" CornerRadius="10"
+                                        Padding="8,2" Visibility="Collapsed">
+                                    <TextBlock x:Name="TxtAchCountBadge"
+                                               Foreground="#ffffff" FontSize="11"
+                                               FontFamily="Segoe UI" FontWeight="Bold"/>
+                                </Border>
+                            </Grid>
+
+                            <Grid Height="6" Margin="0,0,0,4">
+                                <Border Background="#2d3561" CornerRadius="3"/>
                                 <Border x:Name="AchievementBarFill"
-                                        Background="#e94560" CornerRadius="4"
+                                        Background="#e94560" CornerRadius="3"
                                         HorizontalAlignment="Left" Width="0"/>
                             </Grid>
                             <TextBlock x:Name="TxtAchievementPct"
                                        Foreground="#636e72" FontSize="11"
-                                       FontFamily="Segoe UI"/>
+                                       FontFamily="Segoe UI" Margin="0,0,0,14"/>
+
+                            <TextBlock x:Name="TxtAchLoading"
+                                       Text="Scanning for achievements…"
+                                       Foreground="#636e72" FontSize="12"
+                                       FontFamily="Segoe UI"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,8,0,8"
+                                       Visibility="Collapsed"/>
+
+                            <Border x:Name="PanelNoAppId"
+                                    Background="#1a1a2e" CornerRadius="8"
+                                    Padding="14,10" Margin="0,0,0,0"
+                                    Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock Text="Steam AppID required"
+                                               Foreground="#b2bec3" FontSize="12"
+                                               FontWeight="Bold"
+                                               FontFamily="Segoe UI"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock TextWrapping="Wrap"
+                                               Foreground="#636e72" FontSize="11"
+                                               FontFamily="Segoe UI"
+                                               Text="Add the Steam AppID to the Notes field, e.g.  steam: 1234567"/>
+                                </StackPanel>
+                            </Border>
+
+                            <ItemsControl x:Name="AchievementsList"
+                                          Visibility="Collapsed">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,6" CornerRadius="8" Padding="10">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#1a1a2e"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
+                                                            <Setter Property="Background" Value="#1e2a1e"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="40"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border Grid.Column="0" Width="36" Height="36"
+                                                        CornerRadius="6" VerticalAlignment="Center">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="#2d3561"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
+                                                                    <Setter Property="Background" Value="#1a3a1a"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock VerticalAlignment="Center"
+                                                               HorizontalAlignment="Center"
+                                                               FontSize="16">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="🔒"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
+                                                                        <Setter Property="Text" Value="✔"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Border>
+
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,6,0">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontFamily="Segoe UI"
+                                                               FontSize="13" FontWeight="SemiBold"
+                                                               TextWrapping="Wrap">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#636e72"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#ffffff"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock Text="{Binding Description}"
+                                                               FontFamily="Segoe UI" FontSize="11"
+                                                               Foreground="#636e72"
+                                                               TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                </StackPanel>
+
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding UnlockedDateDisplay}"
+                                                           FontFamily="Segoe UI" FontSize="10"
+                                                           Foreground="#00b894"
+                                                           VerticalAlignment="Top" Margin="0,2,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
                         </StackPanel>
                     </Border>
 
                 </StackPanel>
             </Grid>
         </ScrollViewer>
+
+        <!-- ── Delete confirmation overlay ── -->
+        <Grid x:Name="DeleteConfirmOverlay"
+              Grid.Row="0" Grid.RowSpan="2"
+              Visibility="Collapsed"
+              Background="#AA000000"
+              Panel.ZIndex="100">
+            <Border Background="#16213e"
+                    BorderBrush="#e17055"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="32,28"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MinWidth="380"
+                    MaxWidth="460">
+                <StackPanel>
+                    <TextBlock Text="Delete from Library"
+                               Foreground="#e17055"
+                               FontSize="18" FontWeight="Bold"
+                               FontFamily="Segoe UI"
+                               Margin="0,0,0,12"/>
+                    <TextBlock x:Name="TxtDeleteConfirmMsg"
+                               Foreground="#b2bec3"
+                               FontSize="13" FontFamily="Segoe UI"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,24"
+                               LineHeight="20"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- Cancel -->
+                        <Button Grid.Column="0"
+                                Content="Cancel"
+                                Height="40"
+                                Background="#2d3561" Foreground="#ffffff"
+                                FontFamily="Segoe UI" FontSize="13" FontWeight="SemiBold"
+                                BorderThickness="0" Cursor="Hand"
+                                Click="BtnDeleteCancel_Click">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="8">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Opacity" Value="0.8"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <!-- Confirm delete -->
+                        <Button Grid.Column="2"
+                                Content="Delete"
+                                Height="40"
+                                Background="#c0392b" Foreground="#ffffff"
+                                FontFamily="Segoe UI" FontSize="13" FontWeight="SemiBold"
+                                BorderThickness="0" Cursor="Hand"
+                                Click="BtnDeleteConfirm_Click">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="8">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Opacity" Value="0.85"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
     </Grid>
 </UserControl>

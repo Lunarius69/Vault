@@ -8,6 +8,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Vault.Database;
@@ -26,12 +29,9 @@ namespace Vault.Views
         private List<Episode> _allEpisodes = new();
         private bool _isMovie;
 
-        // FIX #1 — cache the scanned file list so FindEpisodeFile doesn't re-scan
-        // the folder tree on every episode card click or next-episode lookup.
         private List<string>? _cachedFolderFiles;
         private string? _cachedFolderPath;
 
-        // FIX #2 — static brush cache shared across all MediaDetailPage instances
         private static readonly Dictionary<string, SolidColorBrush> _statusBrushCache = new();
 
         public event EventHandler? BackRequested;
@@ -118,9 +118,6 @@ namespace Vault.Views
             if (!string.IsNullOrEmpty(_item.FolderPath))
                 ShowMessage($"Folder: {Path.GetFileName(_item.FolderPath)}", "#636e72");
 
-            // FIX #3 — load poster and banner async off the UI thread so the page
-            // shell appears instantly. Previously BitmapCacheOption.OnLoad forced
-            // synchronous file reads on the UI thread for every page open.
             _ = Task.Run(async () =>
             {
                 var posterBmp = !string.IsNullOrEmpty(_item.PosterPath) && File.Exists(_item.PosterPath)
@@ -152,10 +149,6 @@ namespace Vault.Views
 
             RefreshProgressBar();
 
-            // FIX #4 — only fetch from TMDB if we're actually missing data.
-            // Previously this ran on every open if description was empty, even after
-            // a failed fetch. Now we also skip if TmdbId is already set and we have
-            // a description, avoiding a network call on every page open.
             bool needsTmdb = _item.TmdbId == 0 || string.IsNullOrEmpty(_item.Description);
             if (needsTmdb)
                 await FetchTmdbDataAsync();
@@ -185,8 +178,6 @@ namespace Vault.Views
             }
         }
 
-        // FIX #3 — separated from LoadBitmap; runs off-thread, returns frozen bitmap
-        // safe to use on the UI thread without further marshaling.
         private static BitmapImage? LoadBitmapFromPath(string path)
         {
             try
@@ -196,7 +187,7 @@ namespace Vault.Views
                 bmp.UriSource = new Uri(path);
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
                 bmp.EndInit();
-                bmp.Freeze(); // makes the bitmap cross-thread safe
+                bmp.Freeze();
                 return bmp;
             }
             catch { return null; }
@@ -229,7 +220,11 @@ namespace Vault.Views
             int tmdbId = _item.TmdbId;
             if (tmdbId == 0)
             {
-                int? found = await _tmdb.SearchAsync(_item.Title, !_isMovie);
+                // FIX: pass _item.MediaType so anime/animated items use genre 16
+                // filtering and never match a live-action result with the same title.
+                // e.g. "Bubble" (AnimeMovie) will now find the anime, not the drama.
+                int? found = await _tmdb.SearchAsync(
+                    _item.Title, !_isMovie, _item.Year, _item.MediaType);
                 if (found == null) return;
                 tmdbId = found.Value;
             }
@@ -239,11 +234,11 @@ namespace Vault.Views
 
             string? posterPath = _item.PosterPath;
             if (string.IsNullOrEmpty(posterPath) && details.PosterPath != null)
-                posterPath = await _tmdb.DownloadPosterAsync(_item.Id, details.PosterPath);
+                posterPath = await _tmdb.DownloadPosterAsync(_item.Id, details.PosterPath, tmdbId);
 
             string? bannerPath = _item.BannerPath;
             if (string.IsNullOrEmpty(bannerPath) && details.BackdropPath != null)
-                bannerPath = await _tmdb.DownloadBannerAsync(_item.Id, details.BackdropPath);
+                bannerPath = await _tmdb.DownloadBannerAsync(_item.Id, details.BackdropPath, tmdbId);
 
             using var db = new VaultContext();
             var dbItem = await db.MediaItems.FindAsync(_item.Id);
@@ -267,7 +262,6 @@ namespace Vault.Views
             if (bannerPath != null)
             {
                 _item.BannerPath = bannerPath;
-                // FIX #3 — load newly fetched banner async too
                 _ = Task.Run(() =>
                 {
                     var bmp = LoadBitmapFromPath(bannerPath);
@@ -308,6 +302,42 @@ namespace Vault.Views
 
             if (_allEpisodes.Count == 0 && _item.TmdbId > 0 && _item.TotalSeasons > 0)
                 await FetchAndSaveEpisodesAsync(db);
+
+            // Sync WatchedEpisodes counter with actual episode flags
+            await SyncWatchedCountAsync();
+        }
+
+        private async Task SyncWatchedCountAsync()
+        {
+            int actual = _allEpisodes.Count(e => e.IsWatched);
+            if (actual == _item.WatchedEpisodes) return;
+
+            _item.WatchedEpisodes = actual;
+
+            string newStatus = _item.WatchedEpisodes >= _item.TotalEpisodes && _item.TotalEpisodes > 0
+                ? "Completed"
+                : _item.WatchedEpisodes > 0 ? "Watching" : _item.WatchStatus;
+
+            bool statusChanged = newStatus != _item.WatchStatus;
+            if (statusChanged) _item.WatchStatus = newStatus;
+
+            using var db = new VaultContext();
+            var dbItem = await db.MediaItems.FindAsync(_item.Id);
+            if (dbItem != null)
+            {
+                dbItem.WatchedEpisodes = actual;
+                if (statusChanged) dbItem.WatchStatus = newStatus;
+                await db.SaveChangesAsync();
+            }
+
+            TxtProgress.Text = _item.TotalEpisodes > 0
+                ? $"{actual} / {_item.TotalEpisodes}" : "—";
+            if (statusChanged)
+            {
+                TxtStatus.Text = newStatus;
+                StatusDot.Fill = GetStatusBrush(newStatus);
+            }
+            RefreshProgressBar();
         }
 
         private async Task FetchAndSaveEpisodesAsync(VaultContext db)
@@ -388,7 +418,8 @@ namespace Vault.Views
             {
                 foreach (string term in searchTerms)
                 {
-                    int? found = await _tmdb.SearchAsync(term, true);
+                    // FIX: pass mediaType for multi-series searches too
+                    int? found = await _tmdb.SearchAsync(term, true, null, _item.MediaType);
                     if (found.HasValue && !ids.Contains(found.Value))
                         ids.Add(found.Value);
                 }
@@ -398,7 +429,9 @@ namespace Vault.Views
                 int tmdbId = _item.TmdbId;
                 if (tmdbId == 0)
                 {
-                    int? found = await _tmdb.SearchAsync(_item.Title, true);
+                    // FIX: pass mediaType here as well
+                    int? found = await _tmdb.SearchAsync(
+                        _item.Title, true, null, _item.MediaType);
                     if (found.HasValue) tmdbId = found.Value;
                 }
                 if (tmdbId > 0) ids.Add(tmdbId);
@@ -492,9 +525,6 @@ namespace Vault.Views
                 .Select(e => new EpisodeViewModel(e))
                 .ToList();
 
-            // FIX #5 — reuse the existing ObservableCollection instead of replacing it.
-            // Previously created a new collection on every season tab switch, which
-            // tears down and rebuilds all episode bindings unnecessarily.
             if (EpisodesItemsControl.ItemsSource is ObservableCollection<EpisodeViewModel> existing)
             {
                 existing.Clear();
@@ -508,6 +538,37 @@ namespace Vault.Views
             }
 
             await Task.CompletedTask;
+        }
+
+        private async void EpisodeCard_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            if (sender is not Button btn || btn.DataContext is not EpisodeViewModel vm) return;
+
+            bool nowWatched = !vm.IsWatched;
+            vm.IsWatched = nowWatched;
+
+            using var db = new VaultContext();
+            var dbEp = await db.Episodes.FindAsync(vm.Id);
+            if (dbEp != null)
+            {
+                dbEp.IsWatched = nowWatched;
+                dbEp.WatchedDate = nowWatched ? DateTime.Now : null;
+                if (!nowWatched) dbEp.ResumePositionSeconds = 0;
+                await db.SaveChangesAsync();
+            }
+
+            // Update episode in-memory list then sync counter
+            var ep = _allEpisodes.FirstOrDefault(ep => ep.Id == vm.Id);
+            if (ep != null)
+            {
+                ep.IsWatched = nowWatched;
+                if (!nowWatched) ep.ResumePositionSeconds = 0;
+            }
+
+            await SyncWatchedCountAsync();
+            UpdateNextEpisodePanel();
+            UpdatePlayButton();
         }
 
         private void EpisodeCard_Click(object sender, RoutedEventArgs e)
@@ -564,8 +625,6 @@ namespace Vault.Views
                 return;
             }
 
-            // FIX #1 — pre-warm the file cache before scanning for next episode
-            // so all the FindEpisodeFile calls below share one directory scan
             EnsureFolderFilesCache();
 
             var current = _allEpisodes
@@ -601,13 +660,25 @@ namespace Vault.Views
             var player = new PlayerWindow(_item, startEpisode, playlist);
             player.Closed += (s, e) =>
             {
-                // FIX #1 — invalidate the file cache when returning from player
-                // in case files changed (e.g. user deleted a video)
                 _cachedFolderFiles = null;
                 _cachedFolderPath = null;
 
                 _ = Dispatcher.InvokeAsync(async () =>
                 {
+                    // Re-read MediaItem from DB to pick up RuntimeMinutes/ResumePositionSeconds
+                    using (var db = new VaultContext())
+                    {
+                        var fresh = await db.MediaItems.FindAsync(_item.Id);
+                        if (fresh != null)
+                        {
+                            _item.WatchStatus = fresh.WatchStatus;
+                            _item.ResumePositionSeconds = fresh.ResumePositionSeconds;
+                            _item.RuntimeMinutes = fresh.RuntimeMinutes;
+                            _item.WatchedEpisodes = fresh.WatchedEpisodes;
+                            _item.WatchTimeMinutes = fresh.WatchTimeMinutes;
+                        }
+                    }
+
                     await LoadEpisodesAsync();
                     BuildSeasonTabs();
                     await ShowSeasonAsync(_currentSeason == -1 ? -1 : _currentSeason);
@@ -626,8 +697,18 @@ namespace Vault.Views
         {
             if (_isMovie)
             {
-                BtnPlay.Content = _item.WatchStatus == "Completed"
-                    ? "▶   Watch Again" : "▶   Watch Movie";
+                if (_item.WatchStatus == "Completed")
+                    BtnPlay.Content = "▶   Watch Again";
+                else if (_item.ResumePositionSeconds > 0)
+                {
+                    var ts = TimeSpan.FromSeconds(_item.ResumePositionSeconds);
+                    string t = ts.TotalHours >= 1
+                        ? $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}"
+                        : $"{ts.Minutes:D2}:{ts.Seconds:D2}";
+                    BtnPlay.Content = $"▶   Continue ({t})";
+                }
+                else
+                    BtnPlay.Content = "▶   Watch Movie";
                 return;
             }
 
@@ -686,8 +767,10 @@ namespace Vault.Views
             double pct = 0;
             if (_isMovie)
             {
-                pct = _item.WatchStatus == "Completed" ? 100 :
-                      _item.ResumePositionSeconds > 0 ? 50 : 0;
+                if (_item.WatchStatus == "Completed")
+                    pct = 100;
+                else if (_item.RuntimeMinutes > 0 && _item.ResumePositionSeconds > 0)
+                    pct = Math.Min(100, (_item.ResumePositionSeconds / (_item.RuntimeMinutes * 60.0)) * 100.0);
             }
             else if (_item.TotalEpisodes > 0)
             {
@@ -733,7 +816,6 @@ namespace Vault.Views
                 await db.SaveChangesAsync();
             }
 
-            // FIX #1 — invalidate file cache when folder changes
             _cachedFolderFiles = null;
             _cachedFolderPath = null;
 
@@ -741,12 +823,110 @@ namespace Vault.Views
             UpdatePlayButton();
         }
 
-        private async void BtnEditStatus_Click(object sender, RoutedEventArgs e)
+        private void BtnEditStatus_Click(object sender, RoutedEventArgs e)
         {
-            string[] statuses = { "Not Started", "Watching", "Completed", "On Hold", "Dropped" };
-            int idx = Array.IndexOf(statuses, _item.WatchStatus);
-            string newStatus = statuses[(idx + 1) % statuses.Length];
+            var popup = new Popup
+            {
+                PlacementTarget = sender as Button,
+                Placement = PlacementMode.Bottom,
+                StaysOpen = false,
+                AllowsTransparency = true
+            };
 
+            var button = sender as Button;
+            var border = new Border
+            {
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16213e")),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561")),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(4),
+                MinWidth = button?.ActualWidth ?? 200
+            };
+
+            var stack = new StackPanel();
+            string[] statuses = { "Not Started", "Watching", "Completed", "On Hold", "Dropped" };
+
+            foreach (string status in statuses)
+            {
+                string statusColor = status switch
+                {
+                    "Watching"     => "#00b894",
+                    "Completed"    => "#0984e3",
+                    "Not Started"  => "#636e72",
+                    "On Hold"      => "#fdcb6e",
+                    "Dropped"      => "#d63031",
+                    _              => "#636e72"
+                };
+                bool isCurrent = _item.WatchStatus == status;
+
+                var btn = new Button
+                {
+                    Background = isCurrent
+                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561"))
+                        : Brushes.Transparent,
+                    BorderThickness = new Thickness(0),
+                    Cursor = Cursors.Hand,
+                    Padding = new Thickness(12, 8, 16, 8),
+                    HorizontalContentAlignment = HorizontalAlignment.Left
+                };
+
+                var btnPanel = new StackPanel { Orientation = Orientation.Horizontal };
+                btnPanel.Children.Add(new System.Windows.Shapes.Ellipse
+                {
+                    Width = 8,
+                    Height = 8,
+                    Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(statusColor)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 10, 0)
+                });
+                btnPanel.Children.Add(new TextBlock
+                {
+                    Text = status,
+                    Foreground = isCurrent
+                        ? Brushes.White
+                        : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#b2bec3")),
+                    FontFamily = new FontFamily("Segoe UI"),
+                    FontSize = 13,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+                btn.Content = btnPanel;
+
+                var template = new ControlTemplate(typeof(Button));
+                var factory = new FrameworkElementFactory(typeof(Border));
+                factory.SetBinding(Border.BackgroundProperty,
+                    new Binding("Background")
+                    {
+                        RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+                    });
+                factory.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+                factory.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
+                template.VisualTree = factory;
+                btn.Template = template;
+
+                string capturedStatus = status;
+                btn.Click += async (s, args) =>
+                {
+                    popup.IsOpen = false;
+                    await SetStatusAsync(capturedStatus);
+                };
+                btn.MouseEnter += (s, args) =>
+                    btn.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561"));
+                btn.MouseLeave += (s, args) =>
+                    btn.Background = isCurrent
+                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561"))
+                        : Brushes.Transparent;
+
+                stack.Children.Add(btn);
+            }
+
+            border.Child = stack;
+            popup.Child = border;
+            popup.IsOpen = true;
+        }
+
+        private async Task SetStatusAsync(string newStatus)
+        {
             using var db = new VaultContext();
             var dbItem = await db.MediaItems.FindAsync(_item.Id);
             if (dbItem == null) return;
@@ -784,16 +964,14 @@ namespace Vault.Views
 
             try
             {
-                if (!string.IsNullOrEmpty(_item.PosterPath) &&
-                    File.Exists(_item.PosterPath))
+                if (!string.IsNullOrEmpty(_item.PosterPath) && File.Exists(_item.PosterPath))
                     File.Delete(_item.PosterPath);
             }
             catch { }
 
             try
             {
-                if (!string.IsNullOrEmpty(_item.BannerPath) &&
-                    File.Exists(_item.BannerPath))
+                if (!string.IsNullOrEmpty(_item.BannerPath) && File.Exists(_item.BannerPath))
                     File.Delete(_item.BannerPath);
             }
             catch { }
@@ -844,10 +1022,6 @@ namespace Vault.Views
             ShowMessage($"Done — {_allEpisodes.Count} episodes loaded", "#00b894");
         }
 
-        // FIX #1 — build the file list once and cache it for the lifetime of this
-        // page instance. Previously Directory.GetFiles was called inside every single
-        // FindEpisodeFile call, meaning a show with 200 episodes would scan the disk
-        // 200+ times during a single LoadPageAsync.
         private void EnsureFolderFilesCache()
         {
             if (_cachedFolderFiles != null && _cachedFolderPath == _item.FolderPath)
@@ -881,7 +1055,6 @@ namespace Vault.Views
         {
             if (string.IsNullOrEmpty(_item.FolderPath)) return null;
 
-            // FIX #1 — use cached file list instead of re-scanning every call
             EnsureFolderFilesCache();
             var allFiles = _cachedFolderFiles!;
 
@@ -894,43 +1067,30 @@ namespace Vault.Views
             int localEpNumber = episodesInSeason.FindIndex(e => e.Id == episode.Id) + 1;
             if (localEpNumber == 0) localEpNumber = 1;
 
-            // Strategy 1: S03E01 with local episode number
-            {
-                string pattern = $"S{episode.SeasonNumber:D2}E{localEpNumber:D2}";
-                var match = allFiles.FirstOrDefault(f =>
-                    f.Contains(pattern, StringComparison.OrdinalIgnoreCase));
-                if (match != null) return match;
-            }
+            string pattern1 = $"S{episode.SeasonNumber:D2}E{localEpNumber:D2}";
+            var match = allFiles.FirstOrDefault(f =>
+                f.Contains(pattern1, StringComparison.OrdinalIgnoreCase));
+            if (match != null) return match;
 
-            // Strategy 2: S03E27 with global episode number
-            {
-                string pattern = $"S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
-                var match = allFiles.FirstOrDefault(f =>
-                    f.Contains(pattern, StringComparison.OrdinalIgnoreCase));
-                if (match != null) return match;
-            }
+            string pattern2 = $"S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
+            match = allFiles.FirstOrDefault(f =>
+                f.Contains(pattern2, StringComparison.OrdinalIgnoreCase));
+            if (match != null) return match;
 
-            // Strategy 3: 3x01 with local number
-            {
-                string pattern = $"{episode.SeasonNumber}x{localEpNumber:D2}";
-                var match = allFiles.FirstOrDefault(f =>
-                    f.Contains(pattern, StringComparison.OrdinalIgnoreCase));
-                if (match != null) return match;
-            }
+            string pattern3 = $"{episode.SeasonNumber}x{localEpNumber:D2}";
+            match = allFiles.FirstOrDefault(f =>
+                f.Contains(pattern3, StringComparison.OrdinalIgnoreCase));
+            if (match != null) return match;
 
-            // Strategy 4: 3x27 with global number
-            {
-                string pattern = $"{episode.SeasonNumber}x{episode.EpisodeNumber:D2}";
-                var match = allFiles.FirstOrDefault(f =>
-                    f.Contains(pattern, StringComparison.OrdinalIgnoreCase));
-                if (match != null) return match;
-            }
+            string pattern4 = $"{episode.SeasonNumber}x{episode.EpisodeNumber:D2}";
+            match = allFiles.FirstOrDefault(f =>
+                f.Contains(pattern4, StringComparison.OrdinalIgnoreCase));
+            if (match != null) return match;
 
-            // Strategy 5: match by episode title first word
             if (!string.IsNullOrEmpty(episode.Title) && episode.Title.Length > 5)
             {
                 string titleKey = episode.Title.Split(' ').First();
-                var match = allFiles.FirstOrDefault(f =>
+                match = allFiles.FirstOrDefault(f =>
                     f.Contains(titleKey, StringComparison.OrdinalIgnoreCase));
                 if (match != null) return match;
             }
@@ -944,10 +1104,8 @@ namespace Vault.Views
                 !Directory.Exists(_item.FolderPath)) return null;
 
             string[] videoExts = { ".mkv", ".mp4", ".avi", ".m4v", ".mov" };
-            return Directory.GetFiles(_item.FolderPath, "*",
-                SearchOption.AllDirectories)
-                .FirstOrDefault(f => videoExts.Contains(
-                    Path.GetExtension(f).ToLower()));
+            return Directory.GetFiles(_item.FolderPath, "*", SearchOption.AllDirectories)
+                .FirstOrDefault(f => videoExts.Contains(Path.GetExtension(f).ToLower()));
         }
 
         private void ShowMessage(string msg, string color)
@@ -958,7 +1116,6 @@ namespace Vault.Views
             TxtMessage.Visibility = Visibility.Visible;
         }
 
-        // FIX #2 — use cached frozen brush instead of allocating a new one every call
         private static Brush GetStatusBrush(string status)
         {
             string key = status ?? "";

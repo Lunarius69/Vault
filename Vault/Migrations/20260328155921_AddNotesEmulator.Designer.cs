@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Vault.Database;
 
@@ -10,49 +11,14 @@ using Vault.Database;
 namespace Vault.Migrations
 {
     [DbContext(typeof(VaultContext))]
-    partial class VaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260328155921_AddNotesEmulator")]
+    partial class AddNotesEmulator
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.4");
-
-            modelBuilder.Entity("Vault.Models.Achievement", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ApiName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("GameId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("IconPath")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsUnlocked")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("UnlockedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GameId");
-
-                    b.ToTable("Achievements");
-                });
 
             modelBuilder.Entity("Vault.Models.Episode", b =>
                 {
@@ -192,15 +158,9 @@ namespace Vault.Migrations
                     b.Property<int?>("RetroAchievementsGameId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("SourceFile")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("TEXT");
-
-                    b.Property<int?>("SteamAppId")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -248,9 +208,6 @@ namespace Vault.Migrations
                     b.Property<long>("ResumePositionSeconds")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("RuntimeMinutes")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -274,9 +231,6 @@ namespace Vault.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<long>("WatchTimeMinutes")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("WatchedEpisodes")
                         .HasColumnType("INTEGER");
 
@@ -286,17 +240,6 @@ namespace Vault.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("MediaItems");
-                });
-
-            modelBuilder.Entity("Vault.Models.Achievement", b =>
-                {
-                    b.HasOne("Vault.Models.Game", "Game")
-                        .WithMany()
-                        .HasForeignKey("GameId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Game");
                 });
 
             modelBuilder.Entity("Vault.Models.Episode", b =>

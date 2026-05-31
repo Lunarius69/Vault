@@ -3,146 +3,315 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#1a1a2e">
 
+    <UserControl.Resources>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#e94560"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+        <Style x:Key="StatLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#636e72"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+        <Style x:Key="StatValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+        <Style x:Key="StatValueSmall" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+        </Style>
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="#16213e"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
+        <Style x:Key="CategoryLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#b2bec3"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <Grid Margin="20">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+        <StackPanel Margin="20">
 
-            <!-- Games Statistics -->
-            <Border Grid.Row="0" Background="#16213e" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+            <!-- ═══════════════════════════════ GAMES ═══════════════════════════════ -->
+            <Border Style="{StaticResource CardBorder}">
                 <StackPanel>
-                    <TextBlock Text="Games Statistics" FontSize="18" FontWeight="Bold" 
-                               Foreground="#e94560" Margin="0,0,0,16"/>
-
+                    <TextBlock Text="🎮  Games" Style="{StaticResource SectionTitle}"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-
                         <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                            <TextBlock Text="Total Games" Foreground="#636e72" FontSize="12"/>
-                            <TextBlock x:Name="TxtTotalGames" Foreground="#ffffff" FontSize="24" 
-                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                            <TextBlock Text="Total Games" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtTotalGames" Foreground="#ffffff" Style="{StaticResource StatValue}"/>
                         </StackPanel>
-
                         <StackPanel Grid.Column="1" Margin="0,0,16,0">
-                            <TextBlock Text="Playing" Foreground="#636e72" FontSize="12"/>
-                            <TextBlock x:Name="TxtPlayingGames" Foreground="#00b894" FontSize="24" 
-                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                            <TextBlock Text="Playing" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtPlayingGames" Foreground="#00b894" Style="{StaticResource StatValue}"/>
                         </StackPanel>
-
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="Completed" Foreground="#636e72" FontSize="12"/>
-                            <TextBlock x:Name="TxtCompletedGames" Foreground="#0984e3" FontSize="24" 
-                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                            <TextBlock Text="Completed" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtCompletedGames" Foreground="#0984e3" Style="{StaticResource StatValue}"/>
                         </StackPanel>
                     </Grid>
-
                     <Grid Margin="0,16,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-
                         <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                            <TextBlock Text="Not Started" Foreground="#636e72" FontSize="12"/>
-                            <TextBlock x:Name="TxtNotStartedGames" Foreground="#636e72" FontSize="24" 
-                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                            <TextBlock Text="Not Started" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtNotStartedGames" Foreground="#636e72" Style="{StaticResource StatValue}"/>
                         </StackPanel>
-
                         <StackPanel Grid.Column="1" Margin="0,0,16,0">
-                            <TextBlock Text="Downloaded" Foreground="#636e72" FontSize="12"/>
-                            <TextBlock x:Name="TxtDownloadedGames" Foreground="#e94560" FontSize="24" 
-                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                            <TextBlock Text="Downloaded" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtDownloadedGames" Foreground="#e94560" Style="{StaticResource StatValue}"/>
                         </StackPanel>
-
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="Total Playtime" Foreground="#636e72" FontSize="12"/>
-                            <TextBlock x:Name="TxtTotalPlaytime" Foreground="#ffffff" FontSize="18" 
-                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                            <TextBlock Text="Total Playtime" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtTotalPlaytime" Foreground="#ffffff" Style="{StaticResource StatValueSmall}"/>
                         </StackPanel>
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <!-- Platform Distribution -->
-            <Border Grid.Row="1" Background="#16213e" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+            <!-- ═══════════════════════════════ PLATFORM DISTRIBUTION ═══════════════════════════════ -->
+            <Border Style="{StaticResource CardBorder}">
                 <StackPanel>
-                    <TextBlock Text="Platform Distribution" FontSize="18" FontWeight="Bold" 
-                               Foreground="#e94560" Margin="0,0,0,16"/>
-                    <ListBox x:Name="PlatformListBox" Background="Transparent" BorderThickness="0"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemTemplate>
+                    <TextBlock Text="🖥  Platform Distribution" Style="{StaticResource SectionTitle}"/>
+                    <ItemsControl x:Name="PlatformListBox">
+                        <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="0,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding Platform}" 
-                                               Foreground="#b2bec3"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding Count}" 
-                                               Foreground="#e94560" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="0" Text="{Binding Platform}"
+                                               Foreground="#b2bec3" FontFamily="Segoe UI"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Count}"
+                                               Foreground="#e94560" FontWeight="Bold"
+                                               FontFamily="Segoe UI"/>
                                 </Grid>
                             </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
 
-            <!-- Media Statistics -->
-            <Border Grid.Row="2" Background="#16213e" CornerRadius="8" Padding="16">
+            <!-- ═══════════════════════════════ MEDIA OVERVIEW ═══════════════════════════════ -->
+            <Border Style="{StaticResource CardBorder}">
                 <StackPanel>
-                    <TextBlock Text="Media Statistics" FontSize="18" FontWeight="Bold" 
-                               Foreground="#e94560" Margin="0,0,0,16"/>
-
+                    <TextBlock Text="📺  Media Overview" Style="{StaticResource SectionTitle}"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-
                         <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                            <TextBlock Text="Total Movies" Foreground="#636e72" FontSize="12"/>
-                            <TextBlock x:Name="TxtTotalMovies" Foreground="#ffffff" FontSize="24" 
-                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                            <TextBlock Text="Currently Watching" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtWatchingMedia" Foreground="#fdcb6e" Style="{StaticResource StatValue}"/>
                         </StackPanel>
-
                         <StackPanel Grid.Column="1" Margin="0,0,16,0">
-                            <TextBlock Text="Total Shows" Foreground="#636e72" FontSize="12"/>
-                            <TextBlock x:Name="TxtTotalShows" Foreground="#ffffff" FontSize="24" 
-                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                            <TextBlock Text="Completed" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtCompletedMedia" Foreground="#0984e3" Style="{StaticResource StatValue}"/>
                         </StackPanel>
-
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="Currently Watching" Foreground="#636e72" FontSize="12"/>
-                            <TextBlock x:Name="TxtWatchingMedia" Foreground="#fdcb6e" FontSize="24" 
-                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                            <TextBlock Text="Total Watch Time" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtTotalWatchTime" Foreground="#ffffff" Style="{StaticResource StatValueSmall}"/>
                         </StackPanel>
                     </Grid>
+                </StackPanel>
+            </Border>
 
-                    <Grid Margin="0,16,0,0">
+            <!-- ═══════════════════════════════ TV SHOWS ═══════════════════════════════ -->
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="📺  TV Shows" Style="{StaticResource SectionTitle}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Total" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtTotalShows" Foreground="#ffffff" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="Watching" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtWatchingShows" Foreground="#00b894" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="0,0,16,0">
+                            <TextBlock Text="Episodes Watched" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtShowsEpisodes" Foreground="#b2bec3" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3">
+                            <TextBlock Text="Watch Time" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtShowsWatchTime" Foreground="#ffffff" Style="{StaticResource StatValueSmall}"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══════════════════════════════ MOVIES ═══════════════════════════════ -->
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="🎬  Movies" Style="{StaticResource SectionTitle}"/>
+                    <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-
                         <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                            <TextBlock Text="Completed" Foreground="#636e72" FontSize="12"/>
-                            <TextBlock x:Name="TxtCompletedMedia" Foreground="#0984e3" FontSize="24" 
-                                       FontWeight="Bold" Margin="0,4,0,0"/>
+                            <TextBlock Text="Total" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtTotalMovies" Foreground="#ffffff" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="Watched" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtWatchedMovies" Foreground="#0984e3" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Watch Time" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtMoviesWatchTime" Foreground="#ffffff" Style="{StaticResource StatValueSmall}"/>
                         </StackPanel>
                     </Grid>
                 </StackPanel>
             </Border>
-        </Grid>
+
+            <!-- ═══════════════════════════════ ANIME SERIES ═══════════════════════════════ -->
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="🎌  Anime Series" Style="{StaticResource SectionTitle}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Total" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtTotalAnime" Foreground="#ffffff" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="Watching" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtWatchingAnime" Foreground="#00b894" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="0,0,16,0">
+                            <TextBlock Text="Episodes Watched" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtAnimeEpisodes" Foreground="#b2bec3" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3">
+                            <TextBlock Text="Watch Time" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtAnimeWatchTime" Foreground="#ffffff" Style="{StaticResource StatValueSmall}"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══════════════════════════════ ANIME MOVIES ═══════════════════════════════ -->
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="🎥  Anime Movies" Style="{StaticResource SectionTitle}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Total" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtTotalAnimeMovies" Foreground="#ffffff" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="Watched" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtWatchedAnimeMovies" Foreground="#0984e3" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Watch Time" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtAnimeMoviesWatchTime" Foreground="#ffffff" Style="{StaticResource StatValueSmall}"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══════════════════════════════ ANIMATED SERIES ═══════════════════════════════ -->
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="🎨  Animated Series" Style="{StaticResource SectionTitle}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Total" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtTotalAnimatedSeries" Foreground="#ffffff" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="Watching" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtWatchingAnimatedSeries" Foreground="#00b894" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="0,0,16,0">
+                            <TextBlock Text="Episodes Watched" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtAnimatedSeriesEpisodes" Foreground="#b2bec3" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3">
+                            <TextBlock Text="Watch Time" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtAnimatedSeriesWatchTime" Foreground="#ffffff" Style="{StaticResource StatValueSmall}"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══════════════════════════════ ANIMATED MOVIES ═══════════════════════════════ -->
+            <Border Style="{StaticResource CardBorder}" Margin="0,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="🎭  Animated Movies" Style="{StaticResource SectionTitle}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Total" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtTotalAnimatedMovies" Foreground="#ffffff" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="Watched" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtWatchedAnimatedMovies" Foreground="#0984e3" Style="{StaticResource StatValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Watch Time" Style="{StaticResource StatLabel}"/>
+                            <TextBlock x:Name="TxtAnimatedMoviesWatchTime" Foreground="#ffffff" Style="{StaticResource StatValueSmall}"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
     </ScrollViewer>
 </UserControl>

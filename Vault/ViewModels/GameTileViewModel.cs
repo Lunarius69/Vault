@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.IO;
+using System.Threading;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Vault.Models;
@@ -16,9 +17,13 @@ namespace Vault.ViewModels
         private bool? _hasBoxArtCache;
         private BitmapImage? _loadedBoxArt;
         private bool _disposed;
-        private static bool _isLoadingImages = false;
 
-        // Static cache for loaded images - this persists across ViewModel instances
+        // FIX: Replaced broken "static bool _isLoadingImages" with a proper semaphore.
+        // The old flag caused all tiles except the first to silently bail out of loading.
+        // This allows up to 4 concurrent image loads without any tile being skipped.
+        private static readonly SemaphoreSlim _loadThrottle = new SemaphoreSlim(4, 4);
+
+        // Static cache for loaded images - persists across ViewModel instances
         private static readonly ConcurrentDictionary<int, BitmapImage?> _imageCache = new();
 
         // Static caches for brushes
@@ -107,14 +112,13 @@ namespace Vault.ViewModels
         });
 
         /// <summary>
-        /// Updates the game data without recreating the ViewModel
-        /// This preserves the loaded image and prevents unnecessary reloads
+        /// Updates the game data without recreating the ViewModel.
+        /// Preserves the loaded image and prevents unnecessary reloads.
         /// </summary>
         public void UpdateGame(Game updatedGame)
         {
             if (updatedGame == null) return;
 
-            // Update properties that might have changed
             if (_game.Title != updatedGame.Title)
             {
                 _game.Title = updatedGame.Title;
@@ -147,20 +151,14 @@ namespace Vault.ViewModels
             }
 
             if (_game.PlaytimeMinutes != updatedGame.PlaytimeMinutes)
-            {
                 _game.PlaytimeMinutes = updatedGame.PlaytimeMinutes;
-            }
 
             if (_game.FileSizeGB != updatedGame.FileSizeGB)
-            {
                 _game.FileSizeGB = updatedGame.FileSizeGB;
-            }
 
             // Only reload box art if it changed
             if (_boxArtPath != updatedGame.BoxArtPath)
-            {
                 BoxArtPath = updatedGame.BoxArtPath;
-            }
 
             // Update the game reference to the new one
             _game = updatedGame;
@@ -171,47 +169,54 @@ namespace Vault.ViewModels
             if (string.IsNullOrEmpty(_boxArtPath) || !File.Exists(_boxArtPath))
                 return;
 
+            // Check cache first before acquiring the semaphore
+            if (_imageCache.TryGetValue(_game.Id, out var cached))
+            {
+                LoadedBoxArt = cached;
+                return;
+            }
+
+            await _loadThrottle.WaitAsync();
             try
             {
-                // Prevent multiple simultaneous loads
-                if (_isLoadingImages)
+                // Re-check cache after acquiring — another tile may have loaded it while we waited
+                if (_imageCache.TryGetValue(_game.Id, out cached))
                 {
-                    // Wait a bit and try again
-                    await System.Threading.Tasks.Task.Delay(50);
-                    if (_imageCache.TryGetValue(_game.Id, out var cached))
-                    {
-                        LoadedBoxArt = cached;
-                        return;
-                    }
+                    LoadedBoxArt = cached;
+                    return;
                 }
 
-                _isLoadingImages = true;
+                // Capture path in a local so it can't change mid-await
+                var path = _boxArtPath;
 
-                // Load on background thread
                 var bitmap = await System.Threading.Tasks.Task.Run(() =>
                 {
                     try
                     {
                         var bmp = new BitmapImage();
                         bmp.BeginInit();
-                        bmp.UriSource = new Uri(_boxArtPath);
+                        bmp.UriSource = new Uri(path);
                         bmp.CacheOption = BitmapCacheOption.OnLoad;
                         bmp.DecodePixelWidth = 200; // Thumbnail size
-                        bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache; // Don't use WPF's cache
                         bmp.EndInit();
                         bmp.Freeze(); // Allow cross-thread access
                         return bmp;
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Failed to load image {_boxArtPath}: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Failed to load image {path}: {ex.Message}");
                         return null;
                     }
                 });
 
                 // Cache the result
                 _imageCache[_game.Id] = bitmap;
-                LoadedBoxArt = bitmap;
+
+                // FIX: LoadedBoxArt setter fires INotifyPropertyChanged — must be on the UI thread
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    LoadedBoxArt = bitmap;
+                });
             }
             catch (Exception ex)
             {
@@ -219,7 +224,7 @@ namespace Vault.ViewModels
             }
             finally
             {
-                _isLoadingImages = false;
+                _loadThrottle.Release();
             }
         }
 
@@ -283,7 +288,7 @@ namespace Vault.ViewModels
         {
             if (_disposed) return;
             _disposed = true;
-            // Don't dispose the image - it's cached
+            // Don't dispose the image — it's cached statically
             LoadedBoxArt = null;
         }
 
