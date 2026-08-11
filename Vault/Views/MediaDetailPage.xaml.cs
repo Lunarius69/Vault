@@ -314,9 +314,19 @@ namespace Vault.Views
 
             _item.WatchedEpisodes = actual;
 
-            string newStatus = _item.WatchedEpisodes >= _item.TotalEpisodes && _item.TotalEpisodes > 0
-                ? "Completed"
-                : _item.WatchedEpisodes > 0 ? "Watching" : _item.WatchStatus;
+            // FIX: Don't override a manually-set "Dropped" or "On Hold" status.
+            // Previously this ran on every episode toggle and every page load,
+            // and would silently flip a dropped/on-hold show back to "Watching"
+            // just because at least one episode was marked watched.
+            string newStatus;
+            if (_item.WatchedEpisodes >= _item.TotalEpisodes && _item.TotalEpisodes > 0)
+                newStatus = "Completed";
+            else if (_item.WatchStatus == "Dropped" || _item.WatchStatus == "On Hold")
+                newStatus = _item.WatchStatus;
+            else if (_item.WatchedEpisodes > 0)
+                newStatus = "Watching";
+            else
+                newStatus = _item.WatchStatus;
 
             bool statusChanged = newStatus != _item.WatchStatus;
             if (statusChanged) _item.WatchStatus = newStatus;
