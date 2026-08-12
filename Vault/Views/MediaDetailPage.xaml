@@ -79,6 +79,108 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- FIX: replaces the old "Edit Status" button + hand-built popup with
+             a real dropdown, so selecting status only ever takes one click to
+             open + one click to select — not several clicks to land on it. -->
+        <Style x:Key="StatusCombo" TargetType="ComboBox">
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="#2d3561"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Resources">
+                <Setter.Value>
+                    <ResourceDictionary>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#16213e"/>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White"/>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#16213e"/>
+                        <Style TargetType="ComboBoxItem">
+                            <Setter Property="Background" Value="#0d1117"/>
+                            <Setter Property="Foreground" Value="#b2bec3"/>
+                            <Setter Property="FontFamily" Value="Segoe UI"/>
+                            <Setter Property="FontSize" Value="13"/>
+                            <Setter Property="Padding" Value="14,10"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ComboBoxItem">
+                                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsHighlighted" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#e94560"/>
+                                                <Setter Property="Foreground" Value="#ffffff"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#2d3561"/>
+                                                <Setter Property="Foreground" Value="#ffffff"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ResourceDictionary>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="MainBorder" Background="{TemplateBinding Background}"
+                                    CornerRadius="8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="30"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter Grid.Column="0"
+                                        Content="{TemplateBinding SelectionBoxItem}"
+                                        ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        IsHitTestVisible="False"
+                                        TextBlock.Foreground="{TemplateBinding Foreground}"/>
+                                    <TextBlock Grid.Column="1" Text="&#x25BE;"
+                                               Foreground="{TemplateBinding Foreground}"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Center"
+                                               FontSize="10"/>
+                                    <ToggleButton Grid.ColumnSpan="2"
+                                        IsChecked="{Binding IsDropDownOpen,
+                                        RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                        Focusable="False" Opacity="0">
+                                        <ToggleButton.Template>
+                                            <ControlTemplate TargetType="ToggleButton">
+                                                <Border Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </ToggleButton.Template>
+                                    </ToggleButton>
+                                </Grid>
+                            </Border>
+                            <Popup IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom" AllowsTransparency="False">
+                                <Border Background="#0d1117" BorderBrush="#2d3561"
+                                        BorderThickness="1"
+                                        MinWidth="{TemplateBinding ActualWidth}">
+                                    <ItemsPresenter/>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="MainBorder" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -178,13 +280,17 @@
                             Margin="0,0,0,6"
                             Click="BtnSetFolder_Click"/>
 
-                    <!-- Edit status button -->
-                    <Button x:Name="BtnEditStatus"
-                            Content="✏  Edit Status"
-                            Style="{StaticResource ActionBtn}"
-                            Background="#2d3561" Foreground="White"
-                            Margin="0,0,0,24"
-                            Click="BtnEditStatus_Click"/>
+                    <!-- Status dropdown -->
+                    <ComboBox x:Name="StatusCombo"
+                              Style="{StaticResource StatusCombo}"
+                              Margin="0,0,0,24"
+                              SelectionChanged="StatusCombo_SelectionChanged">
+                        <ComboBoxItem Content="Not Started"/>
+                        <ComboBoxItem Content="Watching"/>
+                        <ComboBoxItem Content="Completed"/>
+                        <ComboBoxItem Content="On Hold"/>
+                        <ComboBoxItem Content="Dropped"/>
+                    </ComboBox>
 
                     <!-- Delete button -->
                     <Button x:Name="BtnDelete"
