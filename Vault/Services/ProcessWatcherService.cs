@@ -105,13 +105,40 @@ namespace Vault.Services
             {
                 var allProcs = Process.GetProcesses();
 
-                // Build a lookup by name (takes first if multiple same-name processes)
-                var byName = allProcs
-                    .GroupBy(p => p.ProcessName, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+                // FIX: .ProcessName (and .Id, in rare cases) throws if a process
+                // exits in the moment between GetProcesses() snapshotting it and
+                // this code reading its properties — which happens constantly on
+                // a real machine due to normal background process churn. The old
+                // code read these inside one big LINQ GroupBy with a single outer
+                // try/catch around the whole Poll() body, so a single one of
+                // these routine exceptions silently aborted detection for EVERY
+                // process that cycle — including the game actually running.
+                // That's why external launches were unreliable: on any given
+                // 10-second poll, the odds that some unrelated process exits
+                // mid-snapshot are high, and that alone was enough to skip
+                // detecting your game for that whole cycle. Now each process is
+                // read defensively so one exited process can't block the rest.
+                var byName = new Dictionary<string, Process>(StringComparer.OrdinalIgnoreCase);
+                var activePids = new HashSet<int>();
 
-                // Build a PID set for ended-session detection
-                var activePids = new HashSet<int>(allProcs.Select(p => p.Id));
+                foreach (var p in allProcs)
+                {
+                    int pid;
+                    string name;
+                    try
+                    {
+                        pid = p.Id;
+                        name = p.ProcessName;
+                    }
+                    catch
+                    {
+                        continue; // process exited mid-enumeration or is inaccessible — skip it, not the whole poll
+                    }
+
+                    activePids.Add(pid);
+                    if (!byName.ContainsKey(name))
+                        byName[name] = p;
+                }
 
                 // Detect newly started games
                 foreach (var (exeName, gameId) in _exeToGameId)
@@ -119,15 +146,19 @@ namespace Vault.Services
                     if (_activeSessions.ContainsKey(gameId)) continue;
                     if (!byName.TryGetValue(exeName, out var proc)) continue;
 
+                    int procId;
+                    try { procId = proc.Id; }
+                    catch { continue; } // exited right as we tried to grab its Id
+
                     // Skip if launcher is already tracking this PID
-                    if (LauncherOwnedPids.Contains(proc.Id)) continue;
+                    if (LauncherOwnedPids.Contains(procId)) continue;
 
                     _activeSessions[gameId] = new Session
                     {
-                        ProcessId = proc.Id,
+                        ProcessId = procId,
                         StartTime = DateTime.Now
                     };
-                    Debug.WriteLine($"[Watcher] Session started — gameId={gameId} exe={exeName} pid={proc.Id}");
+                    Debug.WriteLine($"[Watcher] Session started — gameId={gameId} exe={exeName} pid={procId}");
                     _ = MarkPlayingAsync(gameId);
                 }
 
