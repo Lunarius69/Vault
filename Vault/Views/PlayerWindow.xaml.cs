@@ -559,6 +559,13 @@ namespace Vault.Views
             catch { }
         }
 
+        // FIX: WindowState/WindowStyle changes don't update ActualWidth/Height/
+        // Left/Top synchronously — the layout pass happens after this method
+        // returns. Calling PositionOverlay() immediately positioned the overlay
+        // using the OLD (pre-toggle) window size, so switching from windowed
+        // back to fullscreen left the overlay stuck at its smaller windowed
+        // size/position, floating over part of the fullscreen video. Deferring
+        // with the same pattern already used for minimize/restore fixes it.
         private void ToggleFullscreen()
         {
             if (WindowState == WindowState.Maximized)
@@ -571,7 +578,7 @@ namespace Vault.Views
                 WindowStyle = WindowStyle.None;
                 WindowState = WindowState.Maximized;
             }
-            PositionOverlay();
+            Dispatcher.InvokeAsync(PositionOverlay, DispatcherPriority.Background);
         }
 
         private async Task AdvanceEpisodeAsync()
