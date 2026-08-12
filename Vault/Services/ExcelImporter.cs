@@ -13,6 +13,7 @@ namespace Vault.Services
     public class ImportResult
     {
         public int GamesImported { get; set; }
+        public int GamesRemoved { get; set; }
         public int MediaImported { get; set; }
         public int DuplicatesSkipped { get; set; }
         public int HorrorSkipped { get; set; }
@@ -149,6 +150,24 @@ namespace Vault.Services
 
             var candidates = CollectCandidates(filePath, result);
 
+            // Remove games that exist in DB but are not present in the newly imported sheet.
+            // This ensures re-importing with a reduced spreadsheet will delete removed rows.
+            var candidateKeys = new HashSet<(string title, string platform)>(
+                candidates.Select(c => (c.Title?.ToLowerInvariant() ?? "", c.Platform?.ToLowerInvariant() ?? "")));
+
+            var existing = await _db.Games.Where(g => !g.IsWishlist).ToListAsync();
+            var toRemove = existing
+                .Where(g => !candidateKeys.Contains((g.Title?.ToLowerInvariant() ?? "", g.Platform?.ToLowerInvariant() ?? "")))
+                .ToList();
+
+            if (toRemove.Count > 0)
+            {
+                _db.Games.RemoveRange(toRemove);
+                await _db.SaveChangesAsync();
+                result.GamesRemoved = toRemove.Count;
+            }
+
+            // Add any new games from the sheet
             foreach (var game in candidates)
             {
                 if (_db.Games.Any(g => g.Title == game.Title && g.Platform == game.Platform))
@@ -400,7 +419,29 @@ namespace Vault.Services
                         title.StartsWith("Download from"))
                         continue;
 
+                    // Use per-row platform if the sheet provides one (column named "platform" or "console").
+                    // Fall back to the sheet name when per-row platform is empty.
                     string gamePlatform = sheetPlatform;
+                    string perRowPlatform = platformCol > 0 ? sheet.Cells[row, platformCol].Text.Trim() : string.Empty;
+
+                    // Heuristic: detect swapped columns where the Title column actually contains a platform
+                    // and the Platform column contains the real title. If detected, swap them.
+                    if (platformCol > 0 && !string.IsNullOrEmpty(perRowPlatform) && IsLikelyPlatform(title) && !IsLikelyPlatform(perRowPlatform))
+                    {
+                        // swap: title <-> perRowPlatform
+                        var actualTitle = perRowPlatform;
+                        var actualPlatform = title;
+                        title = actualTitle;
+                        gamePlatform = actualPlatform;
+                    }
+                    else if (!string.IsNullOrEmpty(perRowPlatform))
+                    {
+                        gamePlatform = perRowPlatform;
+                    }
+
+                    // Normalise common short platform names (same map used for SSD sheet).
+                    if (SsdPlatformMap.TryGetValue(gamePlatform, out var mapped))
+                        gamePlatform = mapped;
 
                     string genre = genreCol > 0
                         ? sheet.Cells[row, genreCol].Text.Trim() : "";
@@ -541,6 +582,38 @@ namespace Vault.Services
             if (s.Contains("animated") || s.Contains("western")) return "AnimatedSeries";
             if (s.Contains("movie")) return "Movie";
             return "Show";
+        }
+
+        // Heuristic used to detect when a Title cell actually contains a platform name
+        // (some spreadsheets accidentally have the two columns swapped). Returns true
+        // when the text looks more like a console/platform than a game title.
+        private static bool IsLikelyPlatform(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return false;
+            string sl = s.Trim().ToLowerInvariant();
+
+            // Quick matches against known platform keys/values
+            if (SsdPlatformMap.ContainsKey(s)) return true;
+            if (SsdPlatformMap.Values.Any(v => string.Equals(v, s, StringComparison.OrdinalIgnoreCase))) return true;
+
+            // Common platform keywords
+            string[] keywords = new[] {
+                "playstation", "ps5", "ps4", "ps3", "ps2", "ps1",
+                "xbox", "series x", "series s", "switch", "gameboy", "gamecube",
+                "nintendo", "wii", "wiiu", "psp", "vita", "sega", "dreamcast",
+                "pc", "pc games", "steamdeck", "arcade"
+            };
+
+            foreach (var k in keywords)
+            {
+                if (sl.Contains(k)) return true;
+            }
+
+            // Very short values (one- or two-word) are more likely to be platform
+            var words = sl.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length <= 2 && sl.Length <= 30) return true;
+
+            return false;
         }
 
         private static int? ParseYear(string text)
