@@ -74,6 +74,10 @@ namespace Vault.ViewModels
         public bool HasPoster => _loadedBitmap != null ||
             (!string.IsNullOrEmpty(_posterPath) && File.Exists(_posterPath));
 
+        // FIX: Shows now use the current episode's mid-episode resume position
+        // (mirrored onto MediaItem by PlayerWindow) instead of season-completion
+        // ratio, so this behaves like Netflix's "still watching" progress line
+        // rather than a "% of season watched" bar.
         public double ProgressPercent
         {
             get
@@ -84,10 +88,18 @@ namespace Vault.ViewModels
                     if (_item.RuntimeMinutes <= 0 || _item.ResumePositionSeconds <= 0) return 0;
                     return Math.Min(100, (_item.ResumePositionSeconds / (_item.RuntimeMinutes * 60.0)) * 100.0);
                 }
-                if (_item.TotalEpisodes <= 0) return 0;
-                return (_item.WatchedEpisodes / (double)_item.TotalEpisodes) * 100.0;
+
+                if (_item.WatchStatus != "Watching") return 0;
+                if (_item.RuntimeMinutes <= 0 || _item.ResumePositionSeconds <= 0) return 0;
+                return Math.Min(100, (_item.ResumePositionSeconds / (_item.RuntimeMinutes * 60.0)) * 100.0);
             }
         }
+
+        // FIX: 0.0–1.0 version of ProgressPercent for use with a ScaleTransform
+        // in XAML, so the progress bar fill scales proportionally to the tile's
+        // actual width instead of the old bug where the 0-100 percent value was
+        // bound directly as a raw pixel Width.
+        public double ProgressFraction => ProgressPercent / 100.0;
 
         public bool IsMovie => _item.MediaType == "Movie" ||
                                _item.MediaType == "AnimeMovie" ||
@@ -103,13 +115,25 @@ namespace Vault.ViewModels
             _ => "#636e72"
         };
 
+        // FIX: While actively watching, show the episode you're currently ON
+        // (CurrentSeason/CurrentEpisode, kept live by PlayerWindow) instead of
+        // the completed-episode count, which only ever showed your last fully
+        // finished episode.
         public string EpisodeInfo
         {
             get
             {
                 if (IsMovie) return "";
+
+                if (_item.WatchStatus == "Watching" &&
+                    _item.CurrentSeason.HasValue && _item.CurrentEpisode.HasValue)
+                {
+                    return $"S{_item.CurrentSeason:D2}E{_item.CurrentEpisode:D2}";
+                }
+
                 if (_item.TotalEpisodes > 0)
                     return $"EP {_item.WatchedEpisodes}/{_item.TotalEpisodes}";
+
                 return "";
             }
         }

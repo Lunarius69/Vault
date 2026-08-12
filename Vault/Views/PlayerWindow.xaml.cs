@@ -1,4 +1,4 @@
-﻿using LibVLCSharp.Shared;
+using LibVLCSharp.Shared;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -181,11 +181,32 @@ namespace Vault.Views
             await db.SaveChangesAsync();
         }
 
+        // FIX: mark which episode is "current" the moment it starts playing,
+        // not only once it's finished. This is what makes the library tile
+        // show the episode you're actually on while you're mid-episode.
+        private async Task SetCurrentEpisodeAsync(Episode ep)
+        {
+            if (ep.Id < 0) return; // movies don't use CurrentSeason/CurrentEpisode
+            try
+            {
+                using var db = new VaultContext();
+                var dbItem = await db.MediaItems.FindAsync(_mediaItem.Id);
+                if (dbItem == null) return;
+                dbItem.CurrentSeason = ep.SeasonNumber;
+                dbItem.CurrentEpisode = ep.EpisodeNumber;
+                _mediaItem.CurrentSeason = ep.SeasonNumber;
+                _mediaItem.CurrentEpisode = ep.EpisodeNumber;
+                await db.SaveChangesAsync();
+            }
+            catch { }
+        }
+
         private async Task PlayCurrentAsync()
         {
             if (_playlistIndex < 0 || _playlistIndex >= _playlist.Count) return;
             var ep = CurrentEpisode;
             _ = EnsureWatchingStatusAsync();
+            _ = SetCurrentEpisodeAsync(ep);
 
             // Resolve file path — DB first, then folder scan
             if (string.IsNullOrEmpty(ep.FilePath) || !File.Exists(ep.FilePath))
@@ -337,6 +358,11 @@ namespace Vault.Views
                     dbItem.WatchStatus = dbItem.TotalEpisodes > 0 &&
                         dbItem.WatchedEpisodes >= dbItem.TotalEpisodes
                         ? "Completed" : "Watching";
+
+                    // FIX: clear the mirrored mid-episode resume position now that
+                    // this episode is fully finished, so the tile bar doesn't show
+                    // a stale "80% through" line for an episode you already finished.
+                    dbItem.ResumePositionSeconds = _mediaItem.ResumePositionSeconds = 0;
                 }
                 await db.SaveChangesAsync();
             }
@@ -533,6 +559,13 @@ namespace Vault.Views
             catch { }
         }
 
+        // FIX: WindowState/WindowStyle changes don't update ActualWidth/Height/
+        // Left/Top synchronously — the layout pass happens after this method
+        // returns. Calling PositionOverlay() immediately positioned the overlay
+        // using the OLD (pre-toggle) window size, so switching from windowed
+        // back to fullscreen left the overlay stuck at its smaller windowed
+        // size/position, floating over part of the fullscreen video. Deferring
+        // with the same pattern already used for minimize/restore fixes it.
         private void ToggleFullscreen()
         {
             if (WindowState == WindowState.Maximized)
@@ -545,7 +578,7 @@ namespace Vault.Views
                 WindowStyle = WindowStyle.None;
                 WindowState = WindowState.Maximized;
             }
-            PositionOverlay();
+            Dispatcher.InvokeAsync(PositionOverlay, DispatcherPriority.Background);
         }
 
         private async Task AdvanceEpisodeAsync()
@@ -640,28 +673,49 @@ namespace Vault.Views
             var dbEp = await db.Episodes.FindAsync(ep.Id);
             if (dbEp != null)
             {
+                // FIX: fetch dbItem regardless of finished/not-finished — we now
+                // need to mirror mid-episode progress onto MediaItem too, not
+                // just update it when an episode fully completes.
+                var dbItem = await db.MediaItems.FindAsync(_mediaItem.Id);
+
                 if (finished)
                 {
                     dbEp.IsWatched = ep.IsWatched = true;
                     dbEp.WatchedDate = DateTime.Now;
                     dbEp.ResumePositionSeconds = ep.ResumePositionSeconds = 0;
+
+                    if (dbItem != null)
+                    {
+                        dbItem.WatchedEpisodes = await db.Episodes
+                            .CountAsync(e => e.MediaItemId == _mediaItem.Id && e.IsWatched);
+                        dbItem.CurrentEpisode = ep.EpisodeNumber;
+                        dbItem.CurrentSeason = ep.SeasonNumber;
+                        dbItem.WatchStatus = dbItem.TotalEpisodes > 0 &&
+                            dbItem.WatchedEpisodes >= dbItem.TotalEpisodes
+                            ? "Completed" : "Watching";
+
+                        // Episode is done — clear the mirrored resume position
+                        // so the tile bar doesn't keep showing "almost done".
+                        dbItem.ResumePositionSeconds = _mediaItem.ResumePositionSeconds = 0;
+                    }
                 }
                 else
                 {
                     dbEp.ResumePositionSeconds = ep.ResumePositionSeconds = posSec;
+
+                    // FIX: mirror the current episode's resume position + runtime
+                    // + which episode it is onto MediaItem. This is what the
+                    // library tile reads to draw the Netflix-style progress line
+                    // and "S01E05" label while you're still mid-episode.
+                    if (dbItem != null)
+                    {
+                        dbItem.ResumePositionSeconds = _mediaItem.ResumePositionSeconds = posSec;
+                        dbItem.RuntimeMinutes = _mediaItem.RuntimeMinutes = ep.RuntimeMinutes;
+                        dbItem.CurrentSeason = ep.SeasonNumber;
+                        dbItem.CurrentEpisode = ep.EpisodeNumber;
+                    }
                 }
 
-                var dbItem = await db.MediaItems.FindAsync(_mediaItem.Id);
-                if (dbItem != null && finished)
-                {
-                    dbItem.WatchedEpisodes = await db.Episodes
-                        .CountAsync(e => e.MediaItemId == _mediaItem.Id && e.IsWatched);
-                    dbItem.CurrentEpisode = ep.EpisodeNumber;
-                    dbItem.CurrentSeason = ep.SeasonNumber;
-                    dbItem.WatchStatus = dbItem.TotalEpisodes > 0 &&
-                        dbItem.WatchedEpisodes >= dbItem.TotalEpisodes
-                        ? "Completed" : "Watching";
-                }
                 await db.SaveChangesAsync();
             }
         }
@@ -682,12 +736,30 @@ namespace Vault.Views
             catch { }
         }
 
+        // FIX: subtitle file picker now opens directly in the current episode's
+        // own folder (the movie's folder, or the show's season folder) instead
+        // of wherever Windows last remembered — since subtitle files always
+        // live right next to the video file in this library.
         private void OnAddSubtitleRequested()
         {
+            string? startDir = null;
+            try
+            {
+                var ep = CurrentEpisode;
+                if (!string.IsNullOrEmpty(ep.FilePath))
+                    startDir = Path.GetDirectoryName(ep.FilePath);
+            }
+            catch { }
+
+            if (string.IsNullOrEmpty(startDir) || !Directory.Exists(startDir))
+                startDir = _mediaItem.FolderPath;
+
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
                 Title = "Select subtitle file",
-                Filter = "Subtitle files|*.srt;*.ass;*.ssa;*.sub;*.vtt;*.idx|All files|*.*"
+                Filter = "Subtitle files|*.srt;*.ass;*.ssa;*.sub;*.vtt;*.idx|All files|*.*",
+                InitialDirectory = !string.IsNullOrEmpty(startDir) && Directory.Exists(startDir)
+                    ? startDir : ""
             };
             if (dlg.ShowDialog() != true) return;
             try { _player?.AddSlave(MediaSlaveType.Subtitle, new Uri(dlg.FileName).AbsoluteUri, true); }
