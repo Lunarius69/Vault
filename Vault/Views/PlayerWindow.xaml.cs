@@ -729,12 +729,30 @@ namespace Vault.Views
             catch { }
         }
 
+        // FIX: subtitle file picker now opens directly in the current episode's
+        // own folder (the movie's folder, or the show's season folder) instead
+        // of wherever Windows last remembered — since subtitle files always
+        // live right next to the video file in this library.
         private void OnAddSubtitleRequested()
         {
+            string? startDir = null;
+            try
+            {
+                var ep = CurrentEpisode;
+                if (!string.IsNullOrEmpty(ep.FilePath))
+                    startDir = Path.GetDirectoryName(ep.FilePath);
+            }
+            catch { }
+
+            if (string.IsNullOrEmpty(startDir) || !Directory.Exists(startDir))
+                startDir = _mediaItem.FolderPath;
+
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
                 Title = "Select subtitle file",
-                Filter = "Subtitle files|*.srt;*.ass;*.ssa;*.sub;*.vtt;*.idx|All files|*.*"
+                Filter = "Subtitle files|*.srt;*.ass;*.ssa;*.sub;*.vtt;*.idx|All files|*.*",
+                InitialDirectory = !string.IsNullOrEmpty(startDir) && Directory.Exists(startDir)
+                    ? startDir : ""
             };
             if (dlg.ShowDialog() != true) return;
             try { _player?.AddSlave(MediaSlaveType.Subtitle, new Uri(dlg.FileName).AbsoluteUri, true); }
