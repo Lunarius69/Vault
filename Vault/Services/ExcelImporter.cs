@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
 using System;
 using System.Collections.Generic;
@@ -400,7 +400,19 @@ namespace Vault.Services
                         title.StartsWith("Download from"))
                         continue;
 
-                    string gamePlatform = sheetPlatform;
+                    // FIX: a "Platform" column was being detected in the header
+                    // scan (platformCol) but never actually used — every row's
+                    // Platform was hardcoded to the sheet's own tab name. That's
+                    // correct for one-console-per-sheet tabs, but any sheet that
+                    // lists multiple consoles per row via its own "Platform"
+                    // column (e.g. a general "Console"/"Retro" tab) had every
+                    // single row lumped under that one sheet-name category
+                    // instead of each game's real console. Now the per-row
+                    // Platform column wins when the sheet has one; otherwise it
+                    // falls back to the sheet name exactly as before.
+                    string gamePlatform = platformCol > 0
+                        ? NullIfEmpty(sheet.Cells[row, platformCol].Text.Trim()) ?? sheetPlatform
+                        : sheetPlatform;
 
                     string genre = genreCol > 0
                         ? sheet.Cells[row, genreCol].Text.Trim() : "";
