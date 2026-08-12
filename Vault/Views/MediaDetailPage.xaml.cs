@@ -34,6 +34,12 @@ namespace Vault.Views
 
         private static readonly Dictionary<string, SolidColorBrush> _statusBrushCache = new();
 
+        // FIX: shared status list + guard flag for the new StatusCombo dropdown
+        // (replaces the old click-through popup for changing watch status).
+        private static readonly string[] StatusOptions =
+            { "Not Started", "Watching", "Completed", "On Hold", "Dropped" };
+        private bool _suppressStatusEvent = false;
+
         public event EventHandler? BackRequested;
 
         private static readonly Dictionary<string, string[]> MultiTmdbSearchTerms =
@@ -88,6 +94,7 @@ namespace Vault.Views
 
             TxtStatus.Text = _item.WatchStatus;
             StatusDot.Fill = GetStatusBrush(_item.WatchStatus);
+            SetStatusComboSelection(_item.WatchStatus);
             TxtYear.Text = _item.Year?.ToString() ?? "—";
             TxtGenre.Text = string.IsNullOrEmpty(_item.Genre) ? "—" : _item.Genre;
             TxtRating.Text = _item.TmdbRating.HasValue
@@ -346,6 +353,7 @@ namespace Vault.Views
             {
                 TxtStatus.Text = newStatus;
                 StatusDot.Fill = GetStatusBrush(newStatus);
+                SetStatusComboSelection(newStatus);
             }
             RefreshProgressBar();
         }
@@ -833,106 +841,30 @@ namespace Vault.Views
             UpdatePlayButton();
         }
 
-        private void BtnEditStatus_Click(object sender, RoutedEventArgs e)
+        // FIX: Replaced the old "Edit Status" button + hand-built popup (which
+        // required opening the popup, then clicking the status you wanted —
+        // and felt like several clicks to actually land on the right one) with
+        // a real dropdown. One click opens it, one click on an option sets it.
+        private async void StatusCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var popup = new Popup
-            {
-                PlacementTarget = sender as Button,
-                Placement = PlacementMode.Bottom,
-                StaysOpen = false,
-                AllowsTransparency = true
-            };
+            if (_suppressStatusEvent) return;
+            if (StatusCombo.SelectedItem is not ComboBoxItem item || item.Content is not string status)
+                return;
+            if (status == _item.WatchStatus) return;
 
-            var button = sender as Button;
-            var border = new Border
-            {
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16213e")),
-                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561")),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(4),
-                MinWidth = button?.ActualWidth ?? 200
-            };
+            await SetStatusAsync(status);
+        }
 
-            var stack = new StackPanel();
-            string[] statuses = { "Not Started", "Watching", "Completed", "On Hold", "Dropped" };
-
-            foreach (string status in statuses)
-            {
-                string statusColor = status switch
-                {
-                    "Watching"     => "#00b894",
-                    "Completed"    => "#0984e3",
-                    "Not Started"  => "#636e72",
-                    "On Hold"      => "#fdcb6e",
-                    "Dropped"      => "#d63031",
-                    _              => "#636e72"
-                };
-                bool isCurrent = _item.WatchStatus == status;
-
-                var btn = new Button
-                {
-                    Background = isCurrent
-                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561"))
-                        : Brushes.Transparent,
-                    BorderThickness = new Thickness(0),
-                    Cursor = Cursors.Hand,
-                    Padding = new Thickness(12, 8, 16, 8),
-                    HorizontalContentAlignment = HorizontalAlignment.Left
-                };
-
-                var btnPanel = new StackPanel { Orientation = Orientation.Horizontal };
-                btnPanel.Children.Add(new System.Windows.Shapes.Ellipse
-                {
-                    Width = 8,
-                    Height = 8,
-                    Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(statusColor)),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 10, 0)
-                });
-                btnPanel.Children.Add(new TextBlock
-                {
-                    Text = status,
-                    Foreground = isCurrent
-                        ? Brushes.White
-                        : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#b2bec3")),
-                    FontFamily = new FontFamily("Segoe UI"),
-                    FontSize = 13,
-                    VerticalAlignment = VerticalAlignment.Center
-                });
-                btn.Content = btnPanel;
-
-                var template = new ControlTemplate(typeof(Button));
-                var factory = new FrameworkElementFactory(typeof(Border));
-                factory.SetBinding(Border.BackgroundProperty,
-                    new Binding("Background")
-                    {
-                        RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
-                    });
-                factory.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
-                factory.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
-                template.VisualTree = factory;
-                btn.Template = template;
-
-                string capturedStatus = status;
-                btn.Click += async (s, args) =>
-                {
-                    popup.IsOpen = false;
-                    await SetStatusAsync(capturedStatus);
-                };
-                btn.MouseEnter += (s, args) =>
-                    btn.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561"));
-                btn.MouseLeave += (s, args) =>
-                    btn.Background = isCurrent
-                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2d3561"))
-                        : Brushes.Transparent;
-
-                stack.Children.Add(btn);
-            }
-
-            border.Child = stack;
-            popup.Child = border;
-            popup.IsOpen = true;
+        // Updates the dropdown's selection without re-triggering
+        // StatusCombo_SelectionChanged (which would otherwise call
+        // SetStatusAsync again and write to the DB unnecessarily).
+        private void SetStatusComboSelection(string status)
+        {
+            int idx = Array.IndexOf(StatusOptions, status);
+            if (idx < 0) idx = 0;
+            _suppressStatusEvent = true;
+            try { StatusCombo.SelectedIndex = idx; }
+            finally { _suppressStatusEvent = false; }
         }
 
         private async Task SetStatusAsync(string newStatus)
@@ -947,6 +879,7 @@ namespace Vault.Views
 
             TxtStatus.Text = newStatus;
             StatusDot.Fill = GetStatusBrush(newStatus);
+            SetStatusComboSelection(newStatus);
             ShowMessage($"Status: {newStatus}", "#00b894");
         }
 
