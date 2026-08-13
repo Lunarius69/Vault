@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="Vault.Views.GamesPage"
+<UserControl x:Class="Vault.Views.GamesPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:vwp="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
@@ -212,6 +212,12 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnRandom" Content="🎲  Random"
+                            Style="{StaticResource FilterButtonActive}"
+                            Click="BtnRandom_Click"
+                            Margin="0,0,16,0"
+                            ToolTip="Open a random game from the current filter"/>
+
                     <TextBlock Text="SORT:" Foreground="#636e72" FontSize="11"
                                FontFamily="Segoe UI" FontWeight="Bold"
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
