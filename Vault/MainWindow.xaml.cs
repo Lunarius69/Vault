@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -29,6 +29,13 @@ namespace Vault
             InitializeComponent();
             _settings = AppSettings.Load();
 
+            // FIX: custom title bar buttons — the maximize/restore icon needs
+            // to reflect the actual window state, including when the user
+            // double-clicks the title bar or drags to a monitor edge (Aero
+            // Snap), not just when the button itself is clicked.
+            StateChanged += (s, e) => UpdateMaximizeRestoreIcon();
+            UpdateMaximizeRestoreIcon();
+
             _gamesPage = new GamesPage(_settings);
             _gamesPage.GameSelected += OnGameSelected;
 
@@ -45,6 +52,24 @@ namespace Vault
 
             NavigateTo("Games");
         }
+
+        private void UpdateMaximizeRestoreIcon()
+        {
+            if (BtnMaximizeRestore == null) return;
+            bool isMaximized = WindowState == WindowState.Maximized;
+            // Segoe MDL2 Assets: E922 = maximize glyph, E923 = restore-down glyph
+            BtnMaximizeRestore.Content = isMaximized ? "\uE923" : "\uE922";
+            BtnMaximizeRestore.ToolTip = isMaximized ? "Restore Down" : "Maximize";
+        }
+
+        private void BtnMinimize_Click(object sender, RoutedEventArgs e) =>
+            WindowState = WindowState.Minimized;
+
+        private void BtnMaximizeRestore_Click(object sender, RoutedEventArgs e) =>
+            WindowState = WindowState == WindowState.Maximized
+                ? WindowState.Normal : WindowState.Maximized;
+
+        private void BtnClose_Click(object sender, RoutedEventArgs e) => Close();
 
         private void OnPlaytimeUpdated(int gameId)
         {
