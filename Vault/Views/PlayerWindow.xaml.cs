@@ -566,7 +566,14 @@ namespace Vault.Views
         // back to fullscreen left the overlay stuck at its smaller windowed
         // size/position, floating over part of the fullscreen video. Deferring
         // with the same pattern already used for minimize/restore fixes it.
-        private void ToggleFullscreen()
+        // FIX (round 2): a single Dispatcher.InvokeAsync at Background priority
+        // wasn't always enough — changing WindowStyle and WindowState together
+        // can still be mid-transition after one layout pass, since the actual
+        // OS-level resize can lag a frame or two behind WPF's own dispatcher
+        // queue. Repositioning once right after the pass, then again a short
+        // moment later once things have genuinely settled, catches it reliably
+        // either way.
+        private async void ToggleFullscreen()
         {
             if (WindowState == WindowState.Maximized)
             {
@@ -578,7 +585,11 @@ namespace Vault.Views
                 WindowStyle = WindowStyle.None;
                 WindowState = WindowState.Maximized;
             }
+
             Dispatcher.InvokeAsync(PositionOverlay, DispatcherPriority.Background);
+
+            await Task.Delay(150);
+            PositionOverlay();
         }
 
         private async Task AdvanceEpisodeAsync()
