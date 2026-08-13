@@ -335,16 +335,44 @@ namespace Vault.Services
 
             if (ssdSheet?.Dimension != null)
             {
-                for (int row = 2; row <= ssdSheet.Dimension.Rows; row++)
+                // FIX: this block used to read fixed column NUMBERS (Cells[row, 2],
+                // Cells[row, 3]...) instead of detecting columns by header name like
+                // every other sheet in this file. That only worked as long as the
+                // sheet's columns stayed in one exact order — the moment the sheet
+                // was edited (a column added/removed/reordered), every read shifted
+                // by a column, which is exactly why Title/Platform (and everything
+                // after them) ended up swapped. Now it scans row 1 for header names
+                // first, the same way the general-sheet importer already does.
+                int consoleCol = -1, ssdTitleCol = -1, ssdGenreCol = -1, ssdYearCol = -1,
+                    ssdSizeCol = -1, ssdNoteCol = -1, ssdMainCol = -1, ssdSidesCol = -1,
+                    ssdCompleteCol = -1;
+
+                for (int c = 1; c <= ssdSheet.Dimension.Columns; c++)
                 {
-                    string rawConsole = ssdSheet.Cells[row, 2].Text.Trim();
-                    string title = ssdSheet.Cells[row, 3].Text.Trim();
+                    string h = ssdSheet.Cells[1, c].Text.Trim().ToLower();
+                    if (h == "console" || h == "platform") consoleCol = c;
+                    else if (h == "title" || h == "game") ssdTitleCol = c;
+                    else if (h == "genre") ssdGenreCol = c;
+                    else if (h == "year") ssdYearCol = c;
+                    else if (h == "size" || h == "rom size") ssdSizeCol = c;
+                    else if (h == "note" || h == "notes") ssdNoteCol = c;
+                    else if (h.Contains("main story")) ssdMainCol = c;
+                    else if (h.Contains("main + side") || h.Contains("main+side")) ssdSidesCol = c;
+                    else if (h.Contains("completionist")) ssdCompleteCol = c;
+                }
+
+                for (int row = 2; row <= ssdSheet.Dimension.Rows && ssdTitleCol > 0; row++)
+                {
+                    string rawConsole = consoleCol > 0
+                        ? ssdSheet.Cells[row, consoleCol].Text.Trim() : "";
+                    string title = ssdSheet.Cells[row, ssdTitleCol].Text.Trim();
                     if (string.IsNullOrWhiteSpace(title)) continue;
 
                     string platform = SsdPlatformMap.TryGetValue(rawConsole, out string? mapped)
                         ? mapped : rawConsole;
 
-                    string genre = ssdSheet.Cells[row, 4].Text.Trim();
+                    string genre = ssdGenreCol > 0
+                        ? ssdSheet.Cells[row, ssdGenreCol].Text.Trim() : "";
 
                     if (IsHorror(title, genre)) { result.HorrorSkipped++; continue; }
 
@@ -352,17 +380,21 @@ namespace Vault.Services
                     if (seen.Contains(key)) { result.DuplicatesSkipped++; continue; }
                     seen.Add(key);
 
-                    double? hltbMain = ParseDouble(ssdSheet.Cells[row, 8].Text);
-                    double? hltbSides = ParseDouble(ssdSheet.Cells[row, 9].Text);
-                    double? hltbComplete = ParseDouble(ssdSheet.Cells[row, 10].Text);
-                    string? note = NullIfEmpty(ssdSheet.Cells[row, 7].Text.Trim());
+                    double? hltbMain = ssdMainCol > 0
+                        ? ParseDouble(ssdSheet.Cells[row, ssdMainCol].Text) : null;
+                    double? hltbSides = ssdSidesCol > 0
+                        ? ParseDouble(ssdSheet.Cells[row, ssdSidesCol].Text) : null;
+                    double? hltbComplete = ssdCompleteCol > 0
+                        ? ParseDouble(ssdSheet.Cells[row, ssdCompleteCol].Text) : null;
+                    string? note = ssdNoteCol > 0
+                        ? NullIfEmpty(ssdSheet.Cells[row, ssdNoteCol].Text.Trim()) : null;
 
                     final.Add(new Game
                     {
                         Title = title,
                         Platform = platform,
-                        Year = ParseYear(ssdSheet.Cells[row, 5].Text),
-                        FileSizeGB = ParseSize(ssdSheet.Cells[row, 6].Text),
+                        Year = ssdYearCol > 0 ? ParseYear(ssdSheet.Cells[row, ssdYearCol].Text) : null,
+                        FileSizeGB = ssdSizeCol > 0 ? ParseSize(ssdSheet.Cells[row, ssdSizeCol].Text) : null,
                         Genre = genre,
                         Status = "Not Started",
                         LibraryType = "Owned",
@@ -419,25 +451,22 @@ namespace Vault.Services
                         title.StartsWith("Download from"))
                         continue;
 
-                    // Use per-row platform if the sheet provides one (column named "platform" or "console").
-                    // Fall back to the sheet name when per-row platform is empty.
-                    string gamePlatform = sheetPlatform;
-                    string perRowPlatform = platformCol > 0 ? sheet.Cells[row, platformCol].Text.Trim() : string.Empty;
-
-                    // Heuristic: detect swapped columns where the Title column actually contains a platform
-                    // and the Platform column contains the real title. If detected, swap them.
-                    if (platformCol > 0 && !string.IsNullOrEmpty(perRowPlatform) && IsLikelyPlatform(title) && !IsLikelyPlatform(perRowPlatform))
-                    {
-                        // swap: title <-> perRowPlatform
-                        var actualTitle = perRowPlatform;
-                        var actualPlatform = title;
-                        title = actualTitle;
-                        gamePlatform = actualPlatform;
-                    }
-                    else if (!string.IsNullOrEmpty(perRowPlatform))
-                    {
-                        gamePlatform = perRowPlatform;
-                    }
+                    // FIX: the swap-detection heuristic that used to run here
+                    // (IsLikelyPlatform) was a workaround guessing at which
+                    // column was "really" the title based on word count — it
+                    // flagged any short 1-2 word text as "probably a platform",
+                    // which risks misfiring on short game titles (Doom, Hades,
+                    // Celeste...) that happen to sit next to a Platform value
+                    // it doesn't recognize. The actual root cause of the
+                    // swapped Title/Platform data was a hardcoded-column-index
+                    // bug in the separate SSD Games import block, now fixed
+                    // properly there — so this sheet's Title/Platform columns
+                    // were never actually swapped to begin with. No more
+                    // guessing needed: just trust the per-row Platform column
+                    // directly when the sheet has one.
+                    string gamePlatform = platformCol > 0
+                        ? NullIfEmpty(sheet.Cells[row, platformCol].Text.Trim()) ?? sheetPlatform
+                        : sheetPlatform;
 
                     // Normalise common short platform names (same map used for SSD sheet).
                     if (SsdPlatformMap.TryGetValue(gamePlatform, out var mapped))
@@ -582,38 +611,6 @@ namespace Vault.Services
             if (s.Contains("animated") || s.Contains("western")) return "AnimatedSeries";
             if (s.Contains("movie")) return "Movie";
             return "Show";
-        }
-
-        // Heuristic used to detect when a Title cell actually contains a platform name
-        // (some spreadsheets accidentally have the two columns swapped). Returns true
-        // when the text looks more like a console/platform than a game title.
-        private static bool IsLikelyPlatform(string s)
-        {
-            if (string.IsNullOrWhiteSpace(s)) return false;
-            string sl = s.Trim().ToLowerInvariant();
-
-            // Quick matches against known platform keys/values
-            if (SsdPlatformMap.ContainsKey(s)) return true;
-            if (SsdPlatformMap.Values.Any(v => string.Equals(v, s, StringComparison.OrdinalIgnoreCase))) return true;
-
-            // Common platform keywords
-            string[] keywords = new[] {
-                "playstation", "ps5", "ps4", "ps3", "ps2", "ps1",
-                "xbox", "series x", "series s", "switch", "gameboy", "gamecube",
-                "nintendo", "wii", "wiiu", "psp", "vita", "sega", "dreamcast",
-                "pc", "pc games", "steamdeck", "arcade"
-            };
-
-            foreach (var k in keywords)
-            {
-                if (sl.Contains(k)) return true;
-            }
-
-            // Very short values (one- or two-word) are more likely to be platform
-            var words = sl.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (words.Length <= 2 && sl.Length <= 30) return true;
-
-            return false;
         }
 
         private static int? ParseYear(string text)
