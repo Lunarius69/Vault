@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -19,6 +19,12 @@ namespace Vault.Views
         private string _currentFilter = "All";
         private string _currentPlatform = "All";
         private string _currentSearch = "";
+        // FIX: ApplyFilters used to only produce a local `list` var — nothing
+        // held onto "what's currently visible" for the Random button to pick
+        // from, so it's now stored here and kept in sync on every filter/sort/
+        // search change.
+        private List<GameTileViewModel> _currentFiltered = new();
+        private static readonly Random _rng = new();
 
         public event EventHandler<Game>? GameSelected;
 
@@ -219,7 +225,19 @@ namespace Vault.Views
 
             var list = filtered.ToList();
             GamesItemsControl.ItemsSource = list;
+            _currentFiltered = list;
             TxtGameCount.Text = $"{list.Count} game{(list.Count != 1 ? "s" : "")}";
+        }
+
+        // FIX: opens a random game's detail page from whatever is currently
+        // visible (respects the active status/platform filter and search box —
+        // e.g. filter to "Not Started" first, then hit Random, to only roll
+        // from your backlog).
+        private void BtnRandom_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentFiltered.Count == 0) return;
+            var pick = _currentFiltered[_rng.Next(_currentFiltered.Count)];
+            GameSelected?.Invoke(this, pick.Game);
         }
 
         private void FilterBtn_Click(object sender, RoutedEventArgs e)
