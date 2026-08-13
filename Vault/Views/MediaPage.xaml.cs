@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -26,6 +26,7 @@ namespace Vault.Views
         private ListCollectionView? _view;
         private string _currentStatus = "All";
         private bool _isFetchingPosters = false;
+        private static readonly Random _rng = new();
 
         public event EventHandler<MediaItem>? ItemSelected;
 
@@ -259,6 +260,17 @@ namespace Vault.Views
         {
             if (sender is Button btn && btn.DataContext is MediaTileViewModel tile)
                 ItemSelected?.Invoke(this, tile.Item);
+        }
+
+        // FIX: opens a random title's detail page from whatever's currently
+        // visible in _tiles — respects the active status filter and search box,
+        // e.g. filter to "Not Started" first, then hit Random, to only roll
+        // from your backlog.
+        private void BtnRandom_Click(object sender, RoutedEventArgs e)
+        {
+            if (_tiles.Count == 0) return;
+            var pick = _tiles[_rng.Next(_tiles.Count)];
+            ItemSelected?.Invoke(this, pick.Item);
         }
 
         public void Search(string query)
