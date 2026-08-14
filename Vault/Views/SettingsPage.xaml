@@ -152,6 +152,27 @@
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Text="Anime Movies Folder" Style="{StaticResource SettingsLabel}"/>
+                <TextBox x:Name="TxtAnimeMoviesFolder" Style="{StaticResource SettingsTextBox}"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseAnimeMovies_Click"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Text="Animated Series Folder" Style="{StaticResource SettingsLabel}"/>
+                <TextBox x:Name="TxtAnimatedSeriesFolder" Style="{StaticResource SettingsTextBox}"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseAnimatedSeries_Click"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Text="Animated Movies Folder" Style="{StaticResource SettingsLabel}"/>
+                <TextBox x:Name="TxtAnimatedMoviesFolder" Style="{StaticResource SettingsTextBox}"/>
+                <Button Content="Browse" Style="{StaticResource BrowseButton}"
+                        Click="BrowseAnimatedMovies_Click"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                 <TextBlock Text="Data Folder (DB + Cache)"
                            Style="{StaticResource SettingsLabel}"/>
                 <TextBox x:Name="TxtDataFolder" Style="{StaticResource SettingsTextBox}"/>

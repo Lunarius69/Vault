@@ -1,0 +1,240 @@
+<Window x:Class="Vault.Views.FolderMatchWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Auto-Match Folders"
+        Width="640" Height="640"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        Background="#1a1a2e">
+
+    <Window.Resources>
+        <Style x:Key="DialogButton" TargetType="Button">
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="#2d3561"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DialogButtonAccent" TargetType="Button" BasedOn="{StaticResource DialogButton}">
+            <Setter Property="Background" Value="#e94560"/>
+        </Style>
+
+        <Style x:Key="SmallLinkButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#b2bec3"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="#ffffff"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="Box" Grid.Column="0"
+                                    Width="18" Height="18"
+                                    Background="#16213e"
+                                    BorderBrush="#2d3561" BorderThickness="1"
+                                    CornerRadius="4" VerticalAlignment="Center">
+                                <Path x:Name="Check" Data="M 3 8 L 7 12 L 14 4"
+                                      Stroke="#ffffff" StrokeThickness="2"
+                                      Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Grid.Column="1" Margin="10,0,0,0"
+                                              VerticalAlignment="Center"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="#e94560"/>
+                                <Setter TargetName="Box" Property="BorderBrush" Value="#e94560"/>
+                                <Setter TargetName="Check" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="36"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title bar -->
+        <Border Grid.Row="0" Background="#16213e"
+                BorderBrush="#2d3561" BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="AUTO-MATCH FOLDERS"
+                           Foreground="#b2bec3" FontFamily="Segoe UI"
+                           FontSize="12" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="16,0,0,0"/>
+                <Button Grid.Column="1" Content="✕" Width="46" Height="36"
+                        Background="Transparent" Foreground="#b2bec3"
+                        BorderThickness="0" FontSize="13" Cursor="Arrow"
+                        Click="BtnClose_Click">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#e94560"/>
+                                    <Setter Property="Foreground" Value="#ffffff"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- Summary -->
+        <StackPanel Grid.Row="1" Margin="20,16,20,8">
+            <TextBlock x:Name="TxtSummary" Foreground="#ffffff"
+                       FontFamily="Segoe UI" FontSize="15" FontWeight="SemiBold"/>
+            <TextBlock x:Name="TxtRootFolder" Foreground="#636e72"
+                       FontFamily="Segoe UI" FontSize="12" Margin="0,4,0,0"/>
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                <Button Content="Select All" Style="{StaticResource SmallLinkButton}"
+                        Click="BtnSelectAll_Click"/>
+                <Button Content="Select None" Style="{StaticResource SmallLinkButton}"
+                        Click="BtnSelectNone_Click"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Match list -->
+        <ScrollViewer Grid.Row="2" Margin="20,0,20,0"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <ItemsControl x:Name="MatchesList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#16213e" CornerRadius="8"
+                                    Padding="12" Margin="0,0,0,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsChecked}"
+                                              VerticalAlignment="Center"/>
+
+                                    <StackPanel Grid.Column="1" Margin="4,0,8,0">
+                                        <TextBlock Text="{Binding Title}"
+                                                   Foreground="#ffffff" FontFamily="Segoe UI"
+                                                   FontSize="13" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding FolderName}"
+                                                   Foreground="#636e72" FontFamily="Segoe UI"
+                                                   FontSize="11" Margin="0,2,0,0"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+
+                                    <Border Grid.Column="2" CornerRadius="4"
+                                            Padding="8,3" VerticalAlignment="Center"
+                                            Background="{Binding BadgeColor}">
+                                        <TextBlock Text="{Binding ConfidenceLabel}"
+                                                   Foreground="#ffffff" FontFamily="Segoe UI"
+                                                   FontSize="10" FontWeight="Bold"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Expander x:Name="UnmatchedExpander" Header="No match found"
+                          Foreground="#636e72" FontFamily="Segoe UI" FontSize="12"
+                          Margin="0,8,0,20" Visibility="Collapsed">
+                    <ItemsControl x:Name="UnmatchedList" Margin="8,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Foreground="#636e72"
+                                           FontFamily="Segoe UI" FontSize="12"
+                                           Margin="0,0,0,4"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="3" Background="#16213e"
+                BorderBrush="#2d3561" BorderThickness="0,1,0,0"
+                Padding="20,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="#636e72" FontFamily="Segoe UI" FontSize="12">
+                    Only checked rows are applied — nothing is changed until you click Apply.
+                </TextBlock>
+                <Button Grid.Column="1" Content="Cancel"
+                        Style="{StaticResource DialogButton}"
+                        Margin="0,0,10,0" Click="BtnCancel_Click"/>
+                <Button Grid.Column="2" x:Name="BtnApply" Content="Apply Selected"
+                        Style="{StaticResource DialogButtonAccent}"
+                        Width="150" Click="BtnApply_Click"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

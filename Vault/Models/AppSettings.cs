@@ -12,6 +12,12 @@ namespace Vault.Models
         public string MoviesFolderPath { get; set; } = "";
         public string ShowsFolderPath { get; set; } = "";
         public string AnimeFolderPath { get; set; } = "";
+        // FIX: only Movies/Shows/Anime had a root folder setting — the other
+        // three media categories (Anime Movies, Animated Series, Animated
+        // Movies) had nowhere to configure one at all.
+        public string AnimeMoviesFolderPath { get; set; } = "";
+        public string AnimatedSeriesFolderPath { get; set; } = "";
+        public string AnimatedMoviesFolderPath { get; set; } = "";
         public string DataFolderPath { get; set; } = "";
         public string SteamGridDbApiKey { get; set; } = "4687f5ff5527c4fa12a89b0f8c2ee359";
         public string TmdbApiKey { get; set; } = "43d720cdc573b6baba8276b8b19ab901";

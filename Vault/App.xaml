@@ -4,6 +4,150 @@
              xmlns:local="clr-namespace:Vault"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+
+        <!-- Dark themed scrollbar, applied globally so every ScrollViewer in
+             the app (episode lists, settings, library grids, etc.) matches
+             the rest of the UI instead of the default light Windows scrollbar. -->
+
+        <Style x:Key="DarkScrollBarLineButton" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="Transparent">
+                            <Path x:Name="Arrow"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Fill="#636e72"
+                                  Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Arrow" Property="Fill" Value="#b2bec3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkScrollBarThumb" TargetType="Thumb">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="Bd" Background="#2d3561" CornerRadius="4"
+                                Margin="3,0,3,0"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#e94560"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#e94560"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkScrollBarPageButton" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="Transparent"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ScrollBar">
+            <Setter Property="Background" Value="#16213e"/>
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="MinWidth" Value="18"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <RepeatButton Grid.Row="0" Height="18"
+                                          Style="{StaticResource DarkScrollBarLineButton}"
+                                          Command="ScrollBar.LineUpCommand"
+                                          Tag="M 0 5 L 5 0 L 10 5 Z"/>
+
+                            <Track x:Name="PART_Track" Grid.Row="1" IsDirectionReversed="True">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource DarkScrollBarPageButton}"
+                                                  Command="ScrollBar.PageUpCommand"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource DarkScrollBarThumb}"/>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource DarkScrollBarPageButton}"
+                                                  Command="ScrollBar.PageDownCommand"/>
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+
+                            <RepeatButton Grid.Row="2" Height="18"
+                                          Style="{StaticResource DarkScrollBarLineButton}"
+                                          Command="ScrollBar.LineDownCommand"
+                                          Tag="M 0 0 L 5 5 L 10 0 Z"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width" Value="Auto"/>
+                    <Setter Property="Height" Value="18"/>
+                    <Setter Property="MinWidth" Value="0"/>
+                    <Setter Property="MinHeight" Value="18"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ScrollBar">
+                                <Grid Background="{TemplateBinding Background}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <RepeatButton Grid.Column="0" Width="18"
+                                                  Style="{StaticResource DarkScrollBarLineButton}"
+                                                  Command="ScrollBar.LineLeftCommand"
+                                                  Tag="M 5 0 L 0 5 L 5 10 Z"/>
+
+                                    <Track x:Name="PART_Track" Grid.Column="1">
+                                        <Track.DecreaseRepeatButton>
+                                            <RepeatButton Style="{StaticResource DarkScrollBarPageButton}"
+                                                          Command="ScrollBar.PageLeftCommand"/>
+                                        </Track.DecreaseRepeatButton>
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource DarkScrollBarThumb}"/>
+                                        </Track.Thumb>
+                                        <Track.IncreaseRepeatButton>
+                                            <RepeatButton Style="{StaticResource DarkScrollBarPageButton}"
+                                                          Command="ScrollBar.PageRightCommand"/>
+                                        </Track.IncreaseRepeatButton>
+                                    </Track>
+
+                                    <RepeatButton Grid.Column="2" Width="18"
+                                                  Style="{StaticResource DarkScrollBarLineButton}"
+                                                  Command="ScrollBar.LineRightCommand"
+                                                  Tag="M 0 0 L 5 5 L 0 10 Z"/>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
     </Application.Resources>
 </Application>

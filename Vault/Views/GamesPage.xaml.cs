@@ -1,293 +1,378 @@
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using Microsoft.EntityFrameworkCore;
+using System.Windows.Data;
+using System.Windows.Media.Imaging;
 using Vault.Database;
 using Vault.Models;
+using Vault.Services;
 using Vault.ViewModels;
 
 namespace Vault.Views
 {
-    public partial class GamesPage : UserControl
+    public partial class MediaPage : UserControl
     {
         private readonly AppSettings _settings;
-        private List<GameTileViewModel> _allGames = new();
-        private string _currentFilter = "All";
-        private string _currentPlatform = "All";
-        private string _currentSearch = "";
-        // FIX: ApplyFilters used to only produce a local `list` var — nothing
-        // held onto "what's currently visible" for the Random button to pick
-        // from, so it's now stored here and kept in sync on every filter/sort/
-        // search change.
-        private List<GameTileViewModel> _currentFiltered = new();
+        private readonly string _mediaType;
+        private List<MediaItem> _allItems = new();
+        private ObservableCollection<MediaTileViewModel> _tiles = new();
+        private ListCollectionView? _view;
+        private string _currentStatus = "All";
+        private bool _isFetchingPosters = false;
         private static readonly Random _rng = new();
 
-        public event EventHandler<Game>? GameSelected;
+        public event EventHandler<MediaItem>? ItemSelected;
 
-        public GamesPage(AppSettings settings)
+        public MediaPage(AppSettings settings, string mediaType)
         {
             InitializeComponent();
             _settings = settings;
-            Loaded += GamesPage_Loaded;
+            _mediaType = mediaType;
+            Loaded += MediaPage_Loaded;
         }
 
-        private async void GamesPage_Loaded(object sender, RoutedEventArgs e)
-        {
-            await LoadGamesAsync();
-        }
+        public void Refresh() => ApplyFilters();
 
-        public async Task RefreshAsync()
-        {
-            await LoadGamesAsync();
-        }
-
-        public void Search(string query)
-        {
-            _currentSearch = query ?? "";
-            ApplyFilters();
-        }
-
-        // Called by MainWindow.OnGameSelected → MovedToMedia to instantly
-        // remove a tile without a full DB reload.
-        public void RemoveGameById(int gameId)
-        {
-            var vm = _allGames.FirstOrDefault(g => g.Id == gameId);
-            if (vm != null)
-            {
-                _allGames.Remove(vm);
-                vm.Dispose();
-                BuildPlatformSidebar();
-                ApplyFilters();
-            }
-        }
-
-        private async Task LoadGamesAsync()
+        private async void MediaPage_Loaded(object sender, RoutedEventArgs e)
         {
             LoadingOverlay.Visibility = Visibility.Visible;
 
+            // Clear stale bitmaps for this type so that tiles always get
+            // their own correct poster from disk rather than a leftover
+            // bitmap that was cached under a different tile's ID last session.
+            // This is per-type so navigating to Movies doesn't wipe Anime cache.
+            MediaTileViewModel.ClearCacheForType(_mediaType);
+
+            using var db = new VaultContext();
+            _allItems = await db.MediaItems
+                .Where(m => m.MediaType == _mediaType)
+                .OrderBy(m => m.Title)
+                .ToListAsync();
+
+            LoadingOverlay.Visibility = Visibility.Collapsed;
+            ApplyFilters();
+        }
+
+        private async Task FetchMissingPostersAsync(List<MediaTileViewModel> tiles)
+        {
+            if (!new TmdbService(_settings).IsConfigured) return;
+            if (_isFetchingPosters) return;
+
+            var missing = tiles.Where(t => !t.HasPoster).ToList();
+            if (missing.Count == 0) return;
+
+            _isFetchingPosters = true;
+
             try
             {
+                var tmdb = new TmdbService(_settings);
                 using var db = new VaultContext();
-                var games = await db.Games.OrderBy(g => g.Title).ToListAsync();
+                bool anyUpdated = false;
+                var dbLock = new object();
+                var semaphore = new System.Threading.SemaphoreSlim(5);
 
-                var existingById = _allGames.ToDictionary(vm => vm.Id);
-                var newList = new List<GameTileViewModel>(games.Count);
-
-                foreach (var game in games)
+                var tasks = missing.Select(async tile =>
                 {
-                    if (existingById.TryGetValue(game.Id, out var existing))
+                    await semaphore.WaitAsync();
+                    try
                     {
-                        existing.UpdateGame(game);
-                        newList.Add(existing);
-                        existingById.Remove(game.Id);
+                        bool isSeries = tile.MediaType != "Movie" &&
+                                        tile.MediaType != "AnimeMovie" &&
+                                        tile.MediaType != "AnimatedMovie";
+
+                        int tmdbId = tile.Item.TmdbId;
+                        if (tmdbId == 0)
+                        {
+                            int? found = await tmdb.SearchAsync(
+                                tile.Title, isSeries, tile.Item.Year, tile.MediaType);
+                            if (found == null) return;
+                            tmdbId = found.Value;
+                        }
+
+                        var details = await tmdb.FetchDetailsAsync(tmdbId, isSeries);
+                        if (details == null) return;
+
+                        string? posterPath = null;
+                        if (isSeries)
+                        {
+                            int seasonNum = TmdbService.ExtractSeasonNumber(tile.Title);
+                            posterPath = await tmdb.DownloadSeasonPosterAsync(
+                                tile.Id, tmdbId, seasonNum);
+                        }
+
+                        if (posterPath == null && !string.IsNullOrEmpty(details.PosterPath))
+                            posterPath = await tmdb.DownloadPosterAsync(
+                                tile.Id, details.PosterPath, tmdbId);
+
+                        string? bannerPath = null;
+                        if (!string.IsNullOrEmpty(details.BackdropPath))
+                            bannerPath = await tmdb.DownloadBannerAsync(
+                                tile.Id, details.BackdropPath, tmdbId);
+
+                        if (posterPath != null)
+                        {
+                            try
+                            {
+                                var capturedPath = posterPath;
+                                var capturedId = tile.Id;
+                                var bmp = await Task.Run(() =>
+                                {
+                                    var b = new BitmapImage();
+                                    b.BeginInit();
+                                    b.UriSource = new Uri(capturedPath);
+                                    b.CacheOption = BitmapCacheOption.OnLoad;
+                                    b.DecodePixelWidth = 150;
+                                    b.EndInit();
+                                    b.Freeze();
+                                    return b;
+                                });
+
+                                await Application.Current.Dispatcher.InvokeAsync(() =>
+                                {
+                                    var liveTile = _tiles.FirstOrDefault(t => t.Id == capturedId);
+                                    if (liveTile != null)
+                                    {
+                                        liveTile.PosterPath = capturedPath;
+                                        liveTile.LoadedBitmap = bmp;
+                                    }
+                                    MediaTileViewModel.InvalidateCache(capturedId);
+                                });
+                            }
+                            catch { }
+                        }
+
+                        lock (dbLock)
+                        {
+                            var dbItem = db.MediaItems.Find(tile.Id);
+                            if (dbItem != null)
+                            {
+                                dbItem.TmdbId = tmdbId;
+                                if (posterPath != null) dbItem.PosterPath = posterPath;
+                                if (bannerPath != null) dbItem.BannerPath = bannerPath;
+                                if (details.Description != null) dbItem.Description = details.Description;
+                                if (details.Rating.HasValue) dbItem.TmdbRating = details.Rating;
+                                if (details.Year.HasValue && dbItem.Year == null) dbItem.Year = details.Year;
+                                if (details.Genre != null && dbItem.Genre == null) dbItem.Genre = details.Genre;
+                                if (details.TotalSeasons.HasValue) dbItem.TotalSeasons = details.TotalSeasons;
+                                if (details.TotalEpisodes.HasValue && dbItem.TotalEpisodes == 0)
+                                    dbItem.TotalEpisodes = details.TotalEpisodes.Value;
+                                anyUpdated = true;
+                            }
+                        }
                     }
-                    else
-                    {
-                        newList.Add(new GameTileViewModel(game));
-                    }
-                }
+                    catch { }
+                    finally { semaphore.Release(); }
+                });
 
-                foreach (var removed in existingById.Values)
-                    removed.Dispose();
-
-                _allGames = newList;
-
-                BuildPlatformSidebar();
-                ApplyFilters();
-
-                _ = FetchMissingBoxArtAsync(games);
+                await Task.WhenAll(tasks);
+                if (anyUpdated) await db.SaveChangesAsync();
             }
             finally
             {
-                LoadingOverlay.Visibility = Visibility.Collapsed;
+                _isFetchingPosters = false;
             }
-        }
-
-        private async Task FetchMissingBoxArtAsync(List<Game> games)
-        {
-            var boxArtService = new Services.BoxArtService(_settings);
-            var missing = games.Where(g =>
-                string.IsNullOrEmpty(g.BoxArtPath) || !System.IO.File.Exists(g.BoxArtPath))
-                .ToList();
-
-            if (missing.Count == 0) return;
-
-            using var db = new VaultContext();
-
-            foreach (var game in missing)
-            {
-                try
-                {
-                    string? path = await boxArtService.GetBoxArtAsync(game);
-                    if (string.IsNullOrEmpty(path)) continue;
-
-                    var dbGame = await db.Games.FindAsync(game.Id);
-                    if (dbGame != null)
-                    {
-                        dbGame.BoxArtPath = path;
-                        game.BoxArtPath = path;
-                    }
-
-                    var vm = _allGames.FirstOrDefault(v => v.Id == game.Id);
-                    if (vm != null)
-                        vm.BoxArtPath = path;
-                }
-                catch { }
-            }
-
-            await db.SaveChangesAsync();
-        }
-
-        private void BuildPlatformSidebar()
-        {
-            PlatformPanel.Children.Clear();
-
-            var platforms = _allGames
-                .Select(g => g.Platform)
-                .Where(p => !string.IsNullOrEmpty(p))
-                .Distinct()
-                .OrderBy(p => p)
-                .ToList();
-
-            platforms.Insert(0, "All");
-
-            foreach (var platform in platforms)
-            {
-                var count = platform == "All"
-                    ? _allGames.Count
-                    : _allGames.Count(g => g.Platform == platform);
-
-                var isActive = platform == _currentPlatform;
-                var btn = new Button
-                {
-                    Content = $"{platform} ({count})",
-                    Tag = platform,
-                    Height = 34,
-                    Margin = new Thickness(8, 2, 8, 2),
-                    HorizontalContentAlignment = HorizontalAlignment.Left,
-                    Padding = new Thickness(10, 0, 10, 0),
-                    Background = isActive
-                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#e94560"))
-                        : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16213e")),
-                    Foreground = Brushes.White,
-                    BorderThickness = new Thickness(0),
-                    Cursor = System.Windows.Input.Cursors.Hand,
-                    FontFamily = new FontFamily("Segoe UI"),
-                    FontSize = 12
-                };
-                btn.Click += PlatformBtn_Click;
-                PlatformPanel.Children.Add(btn);
-            }
-        }
-
-        private void PlatformBtn_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.Tag is string platform)
-            {
-                _currentPlatform = platform;
-                BuildPlatformSidebar();
-                ApplyFilters();
-            }
-        }
-
-        private void ApplyFilters()
-        {
-            var filtered = _allGames.AsEnumerable();
-
-            if (_currentFilter != "All")
-            {
-                if (_currentFilter == "Downloaded")
-                    filtered = filtered.Where(g => g.IsDownloaded);
-                else
-                    filtered = filtered.Where(g => g.Status == _currentFilter);
-            }
-
-            if (_currentPlatform != "All")
-                filtered = filtered.Where(g => g.Platform == _currentPlatform);
-
-            if (!string.IsNullOrWhiteSpace(_currentSearch))
-                filtered = filtered.Where(g =>
-                    g.Title.Contains(_currentSearch, StringComparison.OrdinalIgnoreCase));
-
-            filtered = (SortCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() switch
-            {
-                "Title Z-A" => filtered.OrderByDescending(g => g.Title),
-                "Year (Newest)" => filtered.OrderByDescending(g => g.Year),
-                "Year (Oldest)" => filtered.OrderBy(g => g.Year),
-                "Platform" => filtered.OrderBy(g => g.Platform),
-                "Playtime" => filtered.OrderByDescending(g => g.Game.PlaytimeMinutes),
-                _ => filtered.OrderBy(g => g.Title),
-            };
-
-            var list = filtered.ToList();
-            GamesItemsControl.ItemsSource = list;
-            _currentFiltered = list;
-            TxtGameCount.Text = $"{list.Count} game{(list.Count != 1 ? "s" : "")}";
-        }
-
-        // FIX: opens a random game's detail page from whatever is currently
-        // visible (respects the active status/platform filter and search box —
-        // e.g. filter to "Not Started" first, then hit Random, to only roll
-        // from your backlog).
-        private void BtnRandom_Click(object sender, RoutedEventArgs e)
-        {
-            if (_currentFiltered.Count == 0) return;
-            var pick = _currentFiltered[_rng.Next(_currentFiltered.Count)];
-            GameSelected?.Invoke(this, pick.Game);
         }
 
         private void FilterBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is not Button btn) return;
+            _currentStatus = (sender as Button)?.Tag?.ToString() ?? "All";
 
-            _currentFilter = btn.Tag?.ToString() ?? "All";
+            BtnAll.Style = (Style)FindResource("FilterButton");
+            BtnWatching.Style = (Style)FindResource("FilterButton");
+            BtnCompleted.Style = (Style)FindResource("FilterButton");
+            BtnNotStarted.Style = (Style)FindResource("FilterButton");
 
-            var inactive = (Style)FindResource("FilterButton");
             var active = (Style)FindResource("FilterButtonActive");
-            BtnAll.Style = inactive;
-            BtnPlaying.Style = inactive;
-            BtnCompleted.Style = inactive;
-            BtnNotStarted.Style = inactive;
-            BtnDownloaded.Style = inactive;
-            btn.Style = active;
+            switch (_currentStatus)
+            {
+                case "All": BtnAll.Style = active; break;
+                case "Watching": BtnWatching.Style = active; break;
+                case "Completed": BtnCompleted.Style = active; break;
+                case "Not Started": BtnNotStarted.Style = active; break;
+            }
 
             ApplyFilters();
-        }
-
-        private async void BtnScanRoms_Click(object sender, RoutedEventArgs e)
-        {
-            LoadingOverlay.Visibility = Visibility.Visible;
-            try
-            {
-                var scanner = new Services.RomScanner(_settings);
-                await scanner.ScanAsync();
-                await LoadGamesAsync();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Scan failed: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                LoadingOverlay.Visibility = Visibility.Collapsed;
-            }
         }
 
         private void SortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_allGames.Count == 0) return;
+            if (_view == null) { ApplyFilters(); return; }
+            ApplySortToView();
+        }
+
+        private void ApplyFilters()
+        {
+            if (MediaItemsControl == null || _allItems == null) return;
+
+            var filtered = _allItems.AsEnumerable();
+
+            if (_currentStatus != "All")
+                filtered = filtered.Where(m => m.WatchStatus == _currentStatus);
+
+            int sortIdx = SortCombo?.SelectedIndex ?? 0;
+            var list = sortIdx switch
+            {
+                0 => filtered.OrderBy(m => m.Title),
+                1 => filtered.OrderByDescending(m => m.Title),
+                2 => filtered.OrderByDescending(m => m.Year),
+                3 => filtered.OrderBy(m => m.Year),
+                4 => filtered.OrderByDescending(m => m.TmdbRating),
+                5 => filtered.OrderBy(m => m.WatchStatus),
+                _ => filtered.OrderBy(m => m.Title)
+            };
+
+            var sortedList = list.ToList();
+
+            if (TxtItemCount != null)
+                TxtItemCount.Text = $"{sortedList.Count} titles";
+
+            var newTiles = sortedList.Select(m => new MediaTileViewModel(m)).ToList();
+
+            _tiles = new ObservableCollection<MediaTileViewModel>(newTiles);
+
+            // No SortDescriptions on the view — list is already sorted at source.
+            // Adding SortDescriptions causes WPF to re-sort on every
+            // OnPropertyChanged (including LoadedBitmap), making tiles jump.
+            _view = new ListCollectionView(_tiles);
+            _view.IsLiveSorting = false;
+
+            MediaItemsControl.ItemsSource = _view;
+
+            var stillMissing = _tiles.Where(t => !t.HasPoster).ToList();
+            if (stillMissing.Count > 0)
+                _ = FetchMissingPostersAsync(stillMissing);
+        }
+
+        private void ApplySortToView()
+        {
+            if (_view == null) return;
             ApplyFilters();
         }
 
-        private void GameTile_Click(object sender, RoutedEventArgs e)
+        private void MediaTile_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is FrameworkElement fe && fe.DataContext is GameTileViewModel vm)
-                GameSelected?.Invoke(this, vm.Game);
+            if (sender is Button btn && btn.DataContext is MediaTileViewModel tile)
+                ItemSelected?.Invoke(this, tile.Item);
+        }
+
+        // FIX: opens a random title's detail page from whatever's currently
+        // visible in _tiles — respects the active status filter and search box,
+        // e.g. filter to "Not Started" first, then hit Random, to only roll
+        // from your backlog.
+        private void BtnRandom_Click(object sender, RoutedEventArgs e)
+        {
+            if (_tiles.Count == 0) return;
+            var pick = _tiles[_rng.Next(_tiles.Count)];
+            ItemSelected?.Invoke(this, pick.Item);
+        }
+
+        // FIX: the Movies/Shows/Anime/etc. root folder settings did nothing —
+        // nothing ever read them. This scans the configured root for that
+        // category, matches subfolder names against titles that don't already
+        // have a folder assigned, and lets the user review/confirm before
+        // anything gets written to the database.
+        private string GetRootFolderForMediaType() => _mediaType switch
+        {
+            "Movie" => _settings.MoviesFolderPath,
+            "Show" => _settings.ShowsFolderPath,
+            "Anime" => _settings.AnimeFolderPath,
+            "AnimeMovie" => _settings.AnimeMoviesFolderPath,
+            "AnimatedSeries" => _settings.AnimatedSeriesFolderPath,
+            "AnimatedMovie" => _settings.AnimatedMoviesFolderPath,
+            _ => ""
+        };
+
+        private static string GetMediaTypeLabel(string mediaType) => mediaType switch
+        {
+            "Show" => "TV Shows",
+            "Anime" => "Anime",
+            "AnimatedSeries" => "Animated Series",
+            "Movie" => "Movies",
+            "AnimeMovie" => "Anime Movies",
+            "AnimatedMovie" => "Animated Movies",
+            _ => mediaType
+        };
+
+        private async void BtnAutoMatchFolders_Click(object sender, RoutedEventArgs e)
+        {
+            string rootFolder = GetRootFolderForMediaType();
+            string label = GetMediaTypeLabel(_mediaType);
+
+            if (string.IsNullOrWhiteSpace(rootFolder) || !Directory.Exists(rootFolder))
+            {
+                MessageBox.Show(
+                    $"Set the \"{label}\" root folder in Settings first, then try again.",
+                    "Auto-Match Folders", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Only match items that don't already have a folder — never
+            // silently overwrite a folder someone already set manually.
+            var candidates = _allItems.Where(m => string.IsNullOrEmpty(m.FolderPath)).ToList();
+            if (candidates.Count == 0)
+            {
+                MessageBox.Show(
+                    $"Every {label} title already has a folder assigned.",
+                    "Auto-Match Folders", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var (matches, unmatched) = FolderAutoMatcher.Match(candidates, rootFolder);
+
+            var dialog = new FolderMatchWindow(matches, unmatched, label, rootFolder)
+            {
+                Owner = Window.GetWindow(this)
+            };
+
+            if (dialog.ShowDialog() != true || dialog.ApprovedResults.Count == 0)
+                return;
+
+            using var db = new VaultContext();
+            foreach (var result in dialog.ApprovedResults)
+            {
+                var dbItem = await db.MediaItems.FindAsync(result.Item.Id);
+                if (dbItem != null)
+                {
+                    dbItem.FolderPath = result.FolderPath;
+                    result.Item.FolderPath = result.FolderPath;
+                }
+            }
+            await db.SaveChangesAsync();
+
+            MessageBox.Show(
+                $"Assigned folders for {dialog.ApprovedResults.Count} title{(dialog.ApprovedResults.Count != 1 ? "s" : "")}.",
+                "Auto-Match Folders", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            ApplyFilters();
+        }
+
+        public void Search(string query)
+        {
+            if (string.IsNullOrWhiteSpace(query)) { ApplyFilters(); return; }
+            query = query.ToLower();
+
+            var list = _allItems
+                .Where(m => m.Title.ToLower().Contains(query) ||
+                            (m.Genre != null && m.Genre.ToLower().Contains(query)))
+                .ToList();
+
+            if (TxtItemCount != null)
+                TxtItemCount.Text = $"{list.Count} titles";
+
+            var newTiles = list.Select(m => new MediaTileViewModel(m)).ToList();
+
+            _tiles = new ObservableCollection<MediaTileViewModel>(newTiles);
+            _view = new ListCollectionView(_tiles);
+            _view.IsLiveSorting = false;
+
+            MediaItemsControl.ItemsSource = _view;
         }
     }
 }

@@ -1,259 +1,379 @@
-﻿using Microsoft.Win32;
-using System;
-using System.Threading;
+﻿using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using OfficeOpenXml;
+using System.Drawing.Printing;
+using System.Reflection.Metadata;
+using System.Runtime.Intrinsics.Arm;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
+using System.Windows.Media.Media3D;
+using Vault;
 using Vault.Models;
-using Vault.Services;
+using static OfficeOpenXml.ExcelErrorValue;
 
-namespace Vault.Views
-{
-    public partial class SettingsPage : UserControl
-    {
-        private AppSettings _settings;
-        private CancellationTokenSource? _resolveCts;
+< UserControl x: Class = "Vault.Views.SettingsPage"
+      xmlns = "http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns: x = "http://schemas.microsoft.com/winfx/2006/xaml"
+      Background = "#1a1a2e" >
 
-        public SettingsPage()
-        {
-            InitializeComponent();
-            _settings = AppSettings.Load();
-            LoadSettings();
-        }
+    < UserControl.Resources >
+        < Style x: Key = "SectionHeader" TargetType = "TextBlock" >
+            < Setter Property = "Foreground" Value = "#e94560" />
+            < Setter Property = "FontSize" Value = "13" />
+            < Setter Property = "FontWeight" Value = "Bold" />
+            < Setter Property = "FontFamily" Value = "Segoe UI" />
+            < Setter Property = "Margin" Value = "0,24,0,8" />
+        </ Style >
+        < Style x: Key = "SettingsLabel" TargetType = "TextBlock" >
+            < Setter Property = "Foreground" Value = "#b2bec3" />
+            < Setter Property = "FontSize" Value = "12" />
+            < Setter Property = "FontFamily" Value = "Segoe UI" />
+            < Setter Property = "VerticalAlignment" Value = "Center" />
+            < Setter Property = "Width" Value = "200" />
+        </ Style >
+        < Style x: Key = "SettingsTextBox" TargetType = "TextBox" >
+            < Setter Property = "Background" Value = "#0f3460" />
+            < Setter Property = "Foreground" Value = "#ffffff" />
+            < Setter Property = "BorderBrush" Value = "#2d3561" />
+            < Setter Property = "BorderThickness" Value = "1" />
+            < Setter Property = "Height" Value = "34" />
+            < Setter Property = "Padding" Value = "8,0" />
+            < Setter Property = "FontFamily" Value = "Segoe UI" />
+            < Setter Property = "FontSize" Value = "12" />
+            < Setter Property = "VerticalContentAlignment" Value = "Center" />
+            < Setter Property = "Width" Value = "380" />
+        </ Style >
+        < Style x: Key = "BrowseButton" TargetType = "Button" >
+            < Setter Property = "Background" Value = "#2d3561" />
+            < Setter Property = "Foreground" Value = "#ffffff" />
+            < Setter Property = "BorderThickness" Value = "0" />
+            < Setter Property = "Height" Value = "34" />
+            < Setter Property = "Width" Value = "80" />
+            < Setter Property = "FontFamily" Value = "Segoe UI" />
+            < Setter Property = "FontSize" Value = "12" />
+            < Setter Property = "Cursor" Value = "Hand" />
+            < Setter Property = "Margin" Value = "8,0,0,0" />
+            < Setter Property = "Template" >
+                < Setter.Value >
+                    < ControlTemplate TargetType = "Button" >
+                        < Border Background = "{TemplateBinding Background}" CornerRadius = "4" >
+                            < ContentPresenter HorizontalAlignment = "Center"
+                                              VerticalAlignment = "Center" />
+                        </ Border >
+                        < ControlTemplate.Triggers >
+                            < Trigger Property = "IsMouseOver" Value = "True" >
+                                < Setter Property = "Background" Value = "#e94560" />
+                            </ Trigger >
+                        </ ControlTemplate.Triggers >
+                    </ ControlTemplate >
+                </ Setter.Value >
+            </ Setter >
+        </ Style >
+        < Style x: Key = "ActionButton" TargetType = "Button" >
+            < Setter Property = "Background" Value = "#e94560" />
+            < Setter Property = "Foreground" Value = "#ffffff" />
+            < Setter Property = "BorderThickness" Value = "0" />
+            < Setter Property = "Height" Value = "40" />
+            < Setter Property = "Width" Value = "160" />
+            < Setter Property = "FontFamily" Value = "Segoe UI" />
+            < Setter Property = "FontSize" Value = "13" />
+            < Setter Property = "FontWeight" Value = "SemiBold" />
+            < Setter Property = "Cursor" Value = "Hand" />
+            < Setter Property = "Template" >
+                < Setter.Value >
+                    < ControlTemplate TargetType = "Button" >
+                        < Border Background = "{TemplateBinding Background}" CornerRadius = "6" >
+                            < ContentPresenter HorizontalAlignment = "Center"
+                                              VerticalAlignment = "Center" />
+                        </ Border >
+                        < ControlTemplate.Triggers >
+                            < Trigger Property = "IsMouseOver" Value = "True" >
+                                < Setter Property = "Background" Value = "#c73652" />
+                            </ Trigger >
+                            < Trigger Property = "IsEnabled" Value = "False" >
+                                < Setter Property = "Background" Value = "#2d3561" />
+                                < Setter Property = "Foreground" Value = "#636e72" />
+                            </ Trigger >
+                        </ ControlTemplate.Triggers >
+                    </ ControlTemplate >
+                </ Setter.Value >
+            </ Setter >
+        </ Style >
+    </ UserControl.Resources >
 
-        private void LoadSettings()
-        {
-            TxtGamesFolder.Text = _settings.GamesFolderPath;
-            TxtGamesFolder2.Text = _settings.GamesFolderPath2;
-            TxtGamesFolder3.Text = _settings.GamesFolderPath3;
-            TxtEmulatorsFolder.Text = _settings.EmulatorsFolderPath;
-            TxtMoviesFolder.Text = _settings.MoviesFolderPath;
-            TxtShowsFolder.Text = _settings.ShowsFolderPath;
-            TxtAnimeFolder.Text = _settings.AnimeFolderPath;
-            TxtDataFolder.Text = _settings.DataFolderPath;
-            TxtSteamGridKey.Text = _settings.SteamGridDbApiKey;
-            TxtTmdbKey.Text = _settings.TmdbApiKey;
-            TxtSteamKey.Text = _settings.SteamApiKey;
-            TxtSteamId.Text = _settings.SteamUserId;
-            TxtRetroUser.Text = _settings.RetroAchievementsUser;
-            TxtRetroKey.Text = _settings.RetroAchievementsApiKey;
-            TxtOpenVGDB.Text = _settings.OpenVGDBPath ?? "";
-            TxtGamesExcel.Text = _settings.GamesExcelPath;
-            TxtMediaExcel.Text = _settings.MediaExcelPath;
-        }
+    < ScrollViewer VerticalScrollBarVisibility = "Auto" >
+        < StackPanel Margin = "40,24,40,40" >
 
-        private void SaveSettings_Click(object sender, RoutedEventArgs e)
-        {
-            _settings.GamesFolderPath = TxtGamesFolder.Text.Trim();
-            _settings.GamesFolderPath2 = TxtGamesFolder2.Text.Trim();
-            _settings.GamesFolderPath3 = TxtGamesFolder3.Text.Trim();
-            _settings.EmulatorsFolderPath = TxtEmulatorsFolder.Text.Trim();
-            _settings.MoviesFolderPath = TxtMoviesFolder.Text.Trim();
-            _settings.ShowsFolderPath = TxtShowsFolder.Text.Trim();
-            _settings.AnimeFolderPath = TxtAnimeFolder.Text.Trim();
-            _settings.DataFolderPath = TxtDataFolder.Text.Trim();
-            _settings.SteamGridDbApiKey = TxtSteamGridKey.Text.Trim();
-            _settings.TmdbApiKey = TxtTmdbKey.Text.Trim();
-            _settings.SteamApiKey = TxtSteamKey.Text.Trim();
-            _settings.SteamUserId = TxtSteamId.Text.Trim();
-            _settings.RetroAchievementsUser = TxtRetroUser.Text.Trim();
-            _settings.RetroAchievementsApiKey = TxtRetroKey.Text.Trim();
-            _settings.OpenVGDBPath = TxtOpenVGDB.Text.Trim();
-            _settings.GamesExcelPath = TxtGamesExcel.Text.Trim();
-            _settings.MediaExcelPath = TxtMediaExcel.Text.Trim();
-            _settings.Save();
+            < TextBlock Text = "Settings" Foreground = "#ffffff"
+                       FontSize = "26" FontWeight = "Bold"
+                       FontFamily = "Segoe UI" Margin = "0,0,0,4" />
+            < TextBlock Text = "Configure your library paths and API keys"
+                       Foreground = "#636e72" FontSize = "13" FontFamily = "Segoe UI" />
 
-            TxtSaveStatus.Text = "Settings saved successfully.";
-            TxtSaveStatus.Visibility = Visibility.Visible;
-        }
+            < Border Height = "1" Background = "#2d3561" Margin = "0,16,0,0" />
 
-        // ── Steam AppID bulk resolver ─────────────────────────────────────────────
+            < !--FOLDER PATHS-- >
+            < TextBlock Text = "FOLDER PATHS" Style = "{StaticResource SectionHeader}" />
 
-        private async void BtnResolveSteamIds_Click(object sender, RoutedEventArgs e)
-        {
-            // If already running, cancel
-            if (_resolveCts != null)
-            {
-                _resolveCts.Cancel();
-                return; // UI resets in the finally block below
-            }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "Games Folder 1" Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtGamesFolder" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseGames_Click" />
+            </ StackPanel >
 
-            _resolveCts = new CancellationTokenSource();
-            BtnResolveSteamIds.Content = "⏹  Cancel";
-            PnlResolveProgress.Visibility = Visibility.Visible;
-            TxtResolveStatus.Visibility = Visibility.Collapsed;
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "Games Folder 2" Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtGamesFolder2" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseGames2_Click" />
+            </ StackPanel >
 
-            var resolver = new BulkSteamAppIdResolver();
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "Games Folder 3" Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtGamesFolder3" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseGames3_Click" />
+            </ StackPanel >
 
-            var progress = new Progress<(int current, int total, string title)>(p =>
-            {
-                TxtResolveGame.Text = p.title;
-                TxtResolveCount.Text = $"{p.current} / {p.total}";
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "Emulators Folder" Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtEmulatorsFolder" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseEmulators_Click" />
+            </ StackPanel >
 
-                // Update the custom progress bar fill width
-                double trackWidth = PnlResolveProgress.ActualWidth - 32; // minus padding
-                double fill = p.total > 0 ? trackWidth * p.current / p.total : 0;
-                PbResolveFill.Width = Math.Max(0, fill);
-            });
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "Movies Folder" Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtMoviesFolder" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseMovies_Click" />
+            </ StackPanel >
 
-            try
-            {
-                var result = await resolver.ResolveAllAsync(progress, _resolveCts.Token);
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "TV Shows Folder" Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtShowsFolder" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseShows_Click" />
+            </ StackPanel >
 
-                TxtResolveGame.Text = "Complete";
-                TxtResolveCount.Text = $"{result.Total} / {result.Total}";
-                PbResolveFill.Width = Math.Max(0, PnlResolveProgress.ActualWidth - 32);
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "Anime Folder" Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtAnimeFolder" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseAnime_Click" />
+            </ StackPanel >
 
-                TxtResolveStatus.Foreground = System.Windows.Media.Brushes.LightGreen;
-                TxtResolveStatus.Text =
-                    $"✓  {result.Resolved} resolved • " +
-                    $"{result.AlreadyHad} already cached • " +
-                    $"{result.Skipped} non-Steam • " +
-                    (result.Failed.Count > 0 ? $"{result.Failed.Count} errors" : "no errors");
-            }
-            catch (OperationCanceledException)
-            {
-                TxtResolveStatus.Foreground =
-                    new System.Windows.Media.SolidColorBrush(
-                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter
-                            .ConvertFromString("#fdcb6e"));
-                TxtResolveStatus.Text = "Cancelled — progress saved to database.";
-            }
-            catch (Exception ex)
-            {
-                TxtResolveStatus.Foreground = System.Windows.Media.Brushes.OrangeRed;
-                TxtResolveStatus.Text = $"Error: {ex.Message}";
-            }
-            finally
-            {
-                _resolveCts?.Dispose();
-                _resolveCts = null;
-                BtnResolveSteamIds.Content = "🔍  Resolve Steam AppIDs";
-                TxtResolveStatus.Visibility = Visibility.Visible;
-            }
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "Anime Movies Folder" Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtAnimeMoviesFolder" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseAnimeMovies_Click" />
+            </ StackPanel >
 
-        // ── Browse helpers ────────────────────────────────────────────────────────
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "Animated Series Folder" Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtAnimatedSeriesFolder" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseAnimatedSeries_Click" />
+            </ StackPanel >
 
-        private string BrowseFolder()
-        {
-            var dialog = new OpenFolderDialog { Title = "Select Folder" };
-            return dialog.ShowDialog() == true ? dialog.FolderName : string.Empty;
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "Animated Movies Folder" Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtAnimatedMoviesFolder" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseAnimatedMovies_Click" />
+            </ StackPanel >
 
-        private string BrowseFile(string filter)
-        {
-            var dialog = new OpenFileDialog { Filter = filter };
-            return dialog.ShowDialog() == true ? dialog.FileName : string.Empty;
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Text = "Data Folder (DB + Cache)"
+                           Style = "{StaticResource SettingsLabel}" />
+                < TextBox x: Name = "TxtDataFolder" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseData_Click" />
+            </ StackPanel >
 
-        private void BrowseGames_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFolder();
-            if (!string.IsNullOrEmpty(path)) TxtGamesFolder.Text = path;
-        }
+            < Border Height = "1" Background = "#2d3561" Margin = "0,8,0,0" />
 
-        private void BrowseGames2_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFolder();
-            if (!string.IsNullOrEmpty(path)) TxtGamesFolder2.Text = path;
-        }
+            < !--API KEYS-- >
+            < TextBlock Text = "API KEYS" Style = "{StaticResource SectionHeader}" />
 
-        private void BrowseGames3_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFolder();
-            if (!string.IsNullOrEmpty(path)) TxtGamesFolder3.Text = path;
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Style = "{StaticResource SettingsLabel}" >
+                    < Run Text = "SteamGridDB API Key" />
+                    < LineBreak />
+                    < Run Text = "steamgriddb.com/api/v2"
+                         Foreground = "#636e72" FontSize = "10" />
+                </ TextBlock >
+                < TextBox x: Name = "TxtSteamGridKey" Style = "{StaticResource SettingsTextBox}" />
+            </ StackPanel >
 
-        private void BrowseEmulators_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFolder();
-            if (!string.IsNullOrEmpty(path)) TxtEmulatorsFolder.Text = path;
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Style = "{StaticResource SettingsLabel}" >
+                    < Run Text = "TMDB API Key" />
+                    < LineBreak />
+                    < Run Text = "themoviedb.org/settings/api"
+                         Foreground = "#636e72" FontSize = "10" />
+                </ TextBlock >
+                < TextBox x: Name = "TxtTmdbKey" Style = "{StaticResource SettingsTextBox}" />
+            </ StackPanel >
 
-        private void BrowseMovies_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFolder();
-            if (!string.IsNullOrEmpty(path)) TxtMoviesFolder.Text = path;
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Style = "{StaticResource SettingsLabel}" >
+                    < Run Text = "Steam API Key (optional)" />
+                    < LineBreak />
+                    < Run Text = "steamcommunity.com/dev/apikey"
+                         Foreground = "#636e72" FontSize = "10" />
+                </ TextBlock >
+                < TextBox x: Name = "TxtSteamKey" Style = "{StaticResource SettingsTextBox}" />
+            </ StackPanel >
 
-        private void BrowseShows_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFolder();
-            if (!string.IsNullOrEmpty(path)) TxtShowsFolder.Text = path;
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Style = "{StaticResource SettingsLabel}" >
+                    < Run Text = "Steam User ID (optional)" />
+                    < LineBreak />
+                    < Run Text = "Your 64-bit Steam ID"
+                         Foreground = "#636e72" FontSize = "10" />
+                </ TextBlock >
+                < TextBox x: Name = "TxtSteamId" Style = "{StaticResource SettingsTextBox}" />
+            </ StackPanel >
 
-        private void BrowseAnime_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFolder();
-            if (!string.IsNullOrEmpty(path)) TxtAnimeFolder.Text = path;
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Style = "{StaticResource SettingsLabel}" >
+                    < Run Text = "RetroAchievements User" />
+                    < LineBreak />
+                    < Run Text = "retroachievements.org username"
+                         Foreground = "#636e72" FontSize = "10" />
+                </ TextBlock >
+                < TextBox x: Name = "TxtRetroUser" Style = "{StaticResource SettingsTextBox}" />
+            </ StackPanel >
 
-        private void BrowseData_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFolder();
-            if (!string.IsNullOrEmpty(path)) TxtDataFolder.Text = path;
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Style = "{StaticResource SettingsLabel}" >
+                    < Run Text = "RetroAchievements API Key" />
+                    < LineBreak />
+                    < Run Text = "retroachievements.org/settings"
+                         Foreground = "#636e72" FontSize = "10" />
+                </ TextBlock >
+                < TextBox x: Name = "TxtRetroKey" Style = "{StaticResource SettingsTextBox}" />
+            </ StackPanel >
 
-        private void BrowseOpenVGDB_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFile("SQLite Database|*.sqlite;*.db|All files|*.*");
-            if (!string.IsNullOrEmpty(path)) TxtOpenVGDB.Text = path;
-        }
+            < Border Height = "1" Background = "#2d3561" Margin = "0,8,0,0" />
 
-        private void BrowseGamesExcel_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFile("Excel Files|*.xlsx;*.xls");
-            if (!string.IsNullOrEmpty(path)) TxtGamesExcel.Text = path;
-        }
+            < !--DATABASES-- >
+            < TextBlock Text = "DATABASES" Style = "{StaticResource SectionHeader}" />
 
-        private void BrowseMediaExcel_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseFile("Excel Files|*.xlsx;*.xls");
-            if (!string.IsNullOrEmpty(path)) TxtMediaExcel.Text = path;
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Style = "{StaticResource SettingsLabel}" >
+                    < Run Text = "OpenVGDB Database" />
+                    < LineBreak />
+                    < Run Text = "github.com/OpenVGDB/OpenVGDB/releases"
+                         Foreground = "#636e72" FontSize = "10" />
+                </ TextBlock >
+                < TextBox x: Name = "TxtOpenVGDB" Style = "{StaticResource SettingsTextBox}"
+                         IsReadOnly = "True" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseOpenVGDB_Click" />
+            </ StackPanel >
 
-        private async void ImportGames_Click(object sender, RoutedEventArgs e)
-        {
-            if (string.IsNullOrEmpty(TxtGamesExcel.Text))
-            {
-                TxtImportStatus.Foreground = System.Windows.Media.Brushes.OrangeRed;
-                TxtImportStatus.Text = "Please select a Games Excel file first.";
-                TxtImportStatus.Visibility = Visibility.Visible;
-                return;
-            }
-            TxtImportStatus.Foreground = System.Windows.Media.Brushes.Gray;
-            TxtImportStatus.Text = "Importing games...";
-            TxtImportStatus.Visibility = Visibility.Visible;
+            < Border Height = "1" Background = "#2d3561" Margin = "0,8,0,0" />
 
-            using var db = new Vault.Database.VaultContext();
-            var boxArtService = new Vault.Services.BoxArtService(_settings);
-            var importer = new Vault.Services.ExcelImporter(db, boxArtService);
-            var result = await importer.ImportGamesAsync(TxtGamesExcel.Text.Trim());
+            < !--IMPORT-- >
+            < TextBlock Text = "IMPORT LIBRARY" Style = "{StaticResource SectionHeader}" />
 
-            TxtImportStatus.Foreground = System.Windows.Media.Brushes.LightGreen;
-            TxtImportStatus.Text = $"Done! {result.GamesImported} games imported.";
-        }
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Style = "{StaticResource SettingsLabel}" >
+                    < Run Text = "Games Excel File" />
+                    < LineBreak />
+                    < Run Text = "Your games_library.xlsx"
+                         Foreground = "#636e72" FontSize = "10" />
+                </ TextBlock >
+                < TextBox x: Name = "TxtGamesExcel" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseGamesExcel_Click" />
+            </ StackPanel >
 
-        private async void ImportMedia_Click(object sender, RoutedEventArgs e)
-        {
-            if (string.IsNullOrEmpty(TxtMediaExcel.Text))
-            {
-                TxtImportStatus.Foreground = System.Windows.Media.Brushes.OrangeRed;
-                TxtImportStatus.Text = "Please select a Media Excel file first.";
-                TxtImportStatus.Visibility = Visibility.Visible;
-                return;
-            }
-            TxtImportStatus.Foreground = System.Windows.Media.Brushes.Gray;
-            TxtImportStatus.Text = "Importing media...";
-            TxtImportStatus.Visibility = Visibility.Visible;
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,12" >
+                < TextBlock Style = "{StaticResource SettingsLabel}" >
+                    < Run Text = "Media Excel File" />
+                    < LineBreak />
+                    < Run Text = "Your media_library.xlsx"
+                         Foreground = "#636e72" FontSize = "10" />
+                </ TextBlock >
+                < TextBox x: Name = "TxtMediaExcel" Style = "{StaticResource SettingsTextBox}" />
+                < Button Content = "Browse" Style = "{StaticResource BrowseButton}"
+                        Click = "BrowseMediaExcel_Click" />
+            </ StackPanel >
 
-            using var db = new Vault.Database.VaultContext();
-            var boxArtService = new Vault.Services.BoxArtService(_settings);
-            var importer = new Vault.Services.ExcelImporter(db, boxArtService);
-            var result = await importer.ImportMediaAsync(TxtMediaExcel.Text.Trim());
+            < StackPanel Orientation = "Horizontal" Margin = "200,0,0,0" >
+                < Button Content = "Import Games" Style = "{StaticResource ActionButton}"
+                        Click = "ImportGames_Click" />
+                < Button Content = "Import Media" Style = "{StaticResource ActionButton}"
+                        Margin = "12,0,0,0" Click = "ImportMedia_Click" />
+            </ StackPanel >
 
-            TxtImportStatus.Foreground = System.Windows.Media.Brushes.LightGreen;
-            TxtImportStatus.Text = $"Done! {result.MediaImported} media items imported.";
-        }
-    }
-}
+            < TextBlock x: Name = "TxtImportStatus" Foreground = "#00b894" FontSize = "12"
+                       FontFamily = "Segoe UI" Margin = "200,8,0,0"
+                       Visibility = "Collapsed" />
+
+            < Border Height = "1" Background = "#2d3561" Margin = "0,16,0,0" />
+
+            < !--ACHIEVEMENTS-- >
+            < TextBlock Text = "ACHIEVEMENTS" Style = "{StaticResource SectionHeader}" />
+
+            < TextBlock TextWrapping = "Wrap" Margin = "0,0,0,16" MaxWidth = "620"
+                       FontFamily = "Segoe UI" FontSize = "12" Foreground = "#b2bec3" >
+                < Run Text = "Bulk-resolve Steam AppIDs for all ~2000 PC games so achievements load instantly on every game page. Runs once and saves results to the database — safe to cancel and resume. Takes ~25 min for 2000 games (games with a " />
+                < Run Text = "steam_appid.txt" FontFamily = "Consolas" Foreground = "#e94560" />
+                < Run Text = " on disk resolve instantly)." />
+            </ TextBlock >
+
+            < !--Progress bar — hidden until job starts -->
+            <Border x:Name = "PnlResolveProgress"
+                    Background = "#0f3460" CornerRadius = "6" Padding = "16"
+                    Margin = "0,0,0,12" Visibility = "Collapsed" MaxWidth = "620" >
+                < StackPanel >
+                    < StackPanel Orientation = "Horizontal" Margin = "0,0,0,8" >
+                        < TextBlock x: Name = "TxtResolveGame"
+                                   Foreground = "#ffffff" FontFamily = "Segoe UI" FontSize = "12"
+                                   TextTrimming = "CharacterEllipsis" MaxWidth = "420" />
+                        < TextBlock x: Name = "TxtResolveCount"
+                                   Foreground = "#636e72" FontFamily = "Segoe UI" FontSize = "12"
+                                   Margin = "8,0,0,0" />
+                    </ StackPanel >
+                    < !--Track-- >
+                    < Border Height = "6" Background = "#2d3561" CornerRadius = "3" >
+                        < Border x: Name = "PbResolveFill" Height = "6" Background = "#e94560"
+                                CornerRadius = "3" HorizontalAlignment = "Left" Width = "0" />
+                    </ Border >
+                </ StackPanel >
+            </ Border >
+
+            < StackPanel Orientation = "Horizontal" Margin = "0,0,0,0" >
+                < Button x: Name = "BtnResolveSteamIds"
+                        Content = "🔍  Resolve Steam AppIDs"
+                        Style = "{StaticResource ActionButton}"
+                        Width = "220"
+                        Click = "BtnResolveSteamIds_Click" />
+                < TextBlock x: Name = "TxtResolveStatus"
+                           Foreground = "#00b894" FontSize = "12" FontFamily = "Segoe UI"
+                           VerticalAlignment = "Center" Margin = "16,0,0,0"
+                           TextWrapping = "Wrap" MaxWidth = "380"
+                           Visibility = "Collapsed" />
+            </ StackPanel >
+
+            < Border Height = "1" Background = "#2d3561" Margin = "0,24,0,0" />
+
+            < !--SAVE-- >
+            < StackPanel Orientation = "Horizontal" Margin = "0,24,0,0" >
+                < Button Content = "Save Settings" Style = "{StaticResource ActionButton}"
+                        Click = "SaveSettings_Click" />
+                < TextBlock x: Name = "TxtSaveStatus" Foreground = "#00b894" FontSize = "12"
+                           FontFamily = "Segoe UI" VerticalAlignment = "Center"
+                           Margin = "16,0,0,0" Visibility = "Collapsed" />
+            </ StackPanel >
+
+        </ StackPanel >
+    </ ScrollViewer >
+</ UserControl >
