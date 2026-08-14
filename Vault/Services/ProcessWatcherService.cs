@@ -20,9 +20,22 @@ namespace Vault.Services
 
         public static void NotifyPlaytimeUpdated(int gameId) => PlaytimeUpdated?.Invoke(gameId);
 
+        // FIX: the exe→game map was only ever built once, in the constructor,
+        // at app startup. Refresh() existed to reload it after a game's
+        // ExePath changes, but nothing ever actually called it — setting a
+        // game's exe from GameDetailPage saved to the DB but the running
+        // watcher never found out, so it could never detect that game's
+        // process no matter how long you waited. Same static-event pattern as
+        // PlaytimeUpdated above, so any page can trigger a refresh without
+        // needing a direct reference to the one long-lived instance (which
+        // lives in MainWindow).
+        public static event Action? ExeMapRefreshRequested;
+
+        public static void RequestExeMapRefresh() => ExeMapRefreshRequested?.Invoke();
+
         private struct Session
         {
-            public int   ProcessId;
+            public int ProcessId;
             public DateTime StartTime;
         }
 
@@ -41,6 +54,7 @@ namespace Vault.Services
             _ = RefreshExeMapAsync();
             _pollTimer = new Timer(_ => Poll(), null,
                 TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+            ExeMapRefreshRequested += Refresh;
         }
 
         // ------------------------------------------------------------------ //
@@ -58,6 +72,7 @@ namespace Vault.Services
         public async Task FlushAsync()
         {
             _disposed = true;
+            ExeMapRefreshRequested -= Refresh;
             _pollTimer.Dispose();
 
             foreach (var (gameId, session) in _activeSessions.ToList())

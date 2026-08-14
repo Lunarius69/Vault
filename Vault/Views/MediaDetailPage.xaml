@@ -83,6 +83,42 @@
         <!-- FIX: replaces the old "Edit Status" button + hand-built popup with
              a real dropdown, so selecting status only ever takes one click to
              open + one click to select — not several clicks to land on it. -->
+        <!-- FIX (runtime crash): a Setter can only target a real
+             DependencyProperty. "Resources" isn't one, so the previous
+             <Setter Property="Resources"> here threw a XamlParseException the
+             moment the style was applied — the whole reason MediaDetailPage
+             failed to open when the Random button loaded it. ItemContainerStyle
+             IS a proper DependencyProperty built for exactly this (styling a
+             ComboBox's dropdown items), so this defines that ComboBoxItem
+             style on its own and wires it in below correctly. -->
+        <Style x:Key="StatusComboItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="#0d1117"/>
+            <Setter Property="Foreground" Value="#b2bec3"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#e94560"/>
+                                <Setter Property="Foreground" Value="#ffffff"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2d3561"/>
+                                <Setter Property="Foreground" Value="#ffffff"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="StatusCombo" TargetType="ComboBox">
             <Setter Property="Height" Value="44"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
@@ -92,42 +128,7 @@
             <Setter Property="Background" Value="#2d3561"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Resources">
-                <Setter.Value>
-                    <ResourceDictionary>
-                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#16213e"/>
-                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White"/>
-                        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#16213e"/>
-                        <Style TargetType="ComboBoxItem">
-                            <Setter Property="Background" Value="#0d1117"/>
-                            <Setter Property="Foreground" Value="#b2bec3"/>
-                            <Setter Property="FontFamily" Value="Segoe UI"/>
-                            <Setter Property="FontSize" Value="13"/>
-                            <Setter Property="Padding" Value="14,10"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ComboBoxItem">
-                                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                                Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter/>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsHighlighted" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="#e94560"/>
-                                                <Setter Property="Foreground" Value="#ffffff"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="#2d3561"/>
-                                                <Setter Property="Foreground" Value="#ffffff"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ResourceDictionary>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource StatusComboItemStyle}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ComboBox">

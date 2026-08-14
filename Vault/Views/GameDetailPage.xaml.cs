@@ -618,6 +618,14 @@ namespace Vault.Views
                     dbGame.IsDownloaded = true;
                     _game.IsDownloaded = true;
                     await db.SaveChangesAsync();
+
+                    // FIX: without this, ProcessWatcherService never learns
+                    // about a newly-set ExePath — it only built its
+                    // exe→game map once at startup, so this game could
+                    // never be detected running externally, and playtime/
+                    // status would never update outside the app's own
+                    // Launch button.
+                    if (!isRom) ProcessWatcherService.RequestExeMapRefresh();
                 }
                 catch (Exception ex)
                 {

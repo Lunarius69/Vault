@@ -13,6 +13,8 @@
 	  <None Remove="Assets\vault.ico" />
 	</ItemGroup>
 
+
+
 	<ItemGroup>
 	  <Content Include="Assets\vault.ico" />
 	</ItemGroup>

@@ -8,7 +8,7 @@
         WindowState="Maximized"
         Background="Black">
 
-    <Grid Background="#01000000">
+    <Grid Background="Black">
         <vlc:VideoView x:Name="VideoView"
                        HorizontalAlignment="Stretch"
                        VerticalAlignment="Stretch"/>

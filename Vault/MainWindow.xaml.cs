@@ -1,7 +1,9 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using Vault.Models;
 using Vault.Services;
@@ -23,6 +25,90 @@ namespace Vault
         private StatsPage? _statsPage;
         private MediaPage? _currentMediaPage;
         private System.Threading.CancellationTokenSource? _searchCts;
+
+        // FIX: WindowStyle="None" + WindowState="Maximized" together is a known
+        // WPF gotcha — without native window chrome, Windows doesn't
+        // automatically shrink the maximized window to sit above the taskbar,
+        // so it maximizes to the FULL monitor bounds and covers the taskbar
+        // instead. That pushed content (like the bottom of Settings) down
+        // below the visible screen. This hooks the raw WM_GETMINMAXINFO
+        // window message — the same mechanism Windows itself uses to compute
+        // maximize bounds — and constrains it to the monitor's actual work
+        // area (screen minus taskbar), which is the standard fix for
+        // chromeless WPF windows.
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            var source = (HwndSource)PresentationSource.FromVisual(this);
+            source?.AddHook(WindowProc);
+        }
+
+        private static IntPtr WindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            const int WM_GETMINMAXINFO = 0x0024;
+            if (msg == WM_GETMINMAXINFO)
+            {
+                WmGetMinMaxInfo(hwnd, lParam);
+                handled = true;
+            }
+            return IntPtr.Zero;
+        }
+
+        private static void WmGetMinMaxInfo(IntPtr hwnd, IntPtr lParam)
+        {
+            var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+
+            IntPtr monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if (monitor != IntPtr.Zero)
+            {
+                var monitorInfo = new MONITORINFO();
+                monitorInfo.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
+                GetMonitorInfo(monitor, ref monitorInfo);
+
+                RECT workArea = monitorInfo.rcWork;
+                RECT monitorArea = monitorInfo.rcMonitor;
+
+                mmi.ptMaxPosition.X = Math.Abs(workArea.Left - monitorArea.Left);
+                mmi.ptMaxPosition.Y = Math.Abs(workArea.Top - monitorArea.Top);
+                mmi.ptMaxSize.X = Math.Abs(workArea.Right - workArea.Left);
+                mmi.ptMaxSize.Y = Math.Abs(workArea.Bottom - workArea.Top);
+            }
+
+            Marshal.StructureToPtr(mmi, lParam, true);
+        }
+
+        private const int MONITOR_DEFAULTTONEAREST = 2;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr handle, int flags);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT { public int X; public int Y; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MINMAXINFO
+        {
+            public POINT ptReserved;
+            public POINT ptMaxSize;
+            public POINT ptMaxPosition;
+            public POINT ptMinTrackSize;
+            public POINT ptMaxTrackSize;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public int dwFlags;
+        }
 
         public MainWindow()
         {
